@@ -1,6 +1,9 @@
 import json
 import requests
 
+from plugin import plugin, require
+
+
 @require(network=True)
 @plugin('geolocation')
 def geolocation(jarvis, s):

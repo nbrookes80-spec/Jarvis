@@ -1,6 +1,7 @@
 import sys
 from functools import partial
 
+import pkg_resources_compat  # noqa: F401  (must precede pluginmanager)
 import pluginmanager
 
 import plugin

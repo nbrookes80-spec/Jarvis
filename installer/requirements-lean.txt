@@ -8,20 +8,17 @@
 # Omitted from the full set, and what you lose:
 #   Image                   -> pulls Django as a transitive dep; pillow below covers PIL
 #   pydoc-markdown          -> docs tooling only (pulls black, yapf, docspec, watchdog)
-#   IMDbPY                  -> movie lookups (pulls cinemagoer + lxml)
-#   opencv-python-headless  -> `open camera` plugin (~60MB)
-#   python-nmap             -> `scan_network` (also needs the nmap binary)
-#   yeelight                -> smart-bulb control
-#   pycricbuzz              -> cricket scores
-#   FlightRadarAPI          -> flight tracking (pulls curl_cffi + cffi)
 #   flake8, mock            -> lint/test tooling, not runtime
+#   pyaudio                 -> microphone input for `music_recognition`; it
+#                              compiles against portaudio19-dev, and without that
+#                              apt package it would fail this whole install
 #
 # To restore any of them: pip install <name> into the same venv.
 
 # --- Core framework ---
 # pluginmanager 0.4.1 imports pkg_resources, which setuptools removed in 82.0.0.
-# Without this pin Jarvis does not start at all: ModuleNotFoundError on import.
-setuptools<82
+# No setuptools pin is needed for that: jarviscli/pkg_resources_compat.py
+# supplies a stand-in when the real module is absent.
 pluginmanager
 colorama
 distro
@@ -68,6 +65,21 @@ climage
 # jarviscli/utilities/voice.py).
 gtts
 pyttsx3 == 2.71; sys_platform != 'darwin'
+
+# --- Plugin-specific extras ---
+# Each of these is imported by exactly one plugin, which is skipped without it.
+cinemagoer                # movie (IMDb lookups; successor to IMDbPY)
+opencv-python-headless    # bulkresize, open camera
+PyPDF2                    # readpdf
+python-nmap               # scan_network (also needs the nmap binary)
+yeelight                  # yeelight smart bulbs
+pycricbuzz                # cricket
+FlightRadarAPI            # flightradar
+pyautogui                 # screen_capture
+akinator                  # akinator
+shazamio                  # music_recognition
+SpeechRecognition         # music_recognition, voice input
+fasttext-wheel; python_version < "3.13"   # detect_language (no wheels for 3.13+ yet)
 
 # --- Location, units, misc ---
 geopy

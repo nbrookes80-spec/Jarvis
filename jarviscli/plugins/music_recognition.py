@@ -10,9 +10,12 @@ import asyncio
 import climage
 
 requirements = ['ffmpeg']
+# speech_recognition imports on its own; only sr.Microphone needs pyaudio, so
+# keep them apart or a missing pyaudio leaves `sr` undefined and the plugin
+# fails to load at all.
+import speech_recognition as sr
 try:
     import pyaudio
-    import speech_recognition as sr
 except ImportError:
     requirements.append(
         'voice_control_requirements (install portaudio + re-run setup.sh)')

@@ -26,3 +26,6 @@ agenda.csv
 # Local MCP connector config: may hold API tokens. The .example file is tracked.
 .mcp.json
 __pycache__/
+
+# cinemagoer (movie plugin) writes a cache wherever it is run from
+cinemagoer.db

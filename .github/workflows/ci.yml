@@ -7,8 +7,9 @@ name: CI
 #   * dependency resolution on every supported Python version -- this is the
 #     check that catches a requirement pinned to a URL that has stopped
 #     existing, which is exactly how installs broke on Python 3.12+
-#   * pkg_resources still importable -- pluginmanager needs it and setuptools
-#     dropped it in 82.0.0, which stops Jarvis starting at all
+#   * pluginmanager importable on current setuptools -- it imports
+#     pkg_resources, which setuptools dropped in 82.0.0; without
+#     jarviscli/pkg_resources_compat.py that stops Jarvis starting at all
 #   * the claude plugin actually registering after a real install
 #   * lint on the files this workflow's own branch introduced
 #
@@ -135,10 +136,11 @@ jobs:
 
       # bootstrap.sh reports problems but intentionally exits 0 so a partial
       # install is still usable, so assert the invariants separately here.
-      - name: Assert pkg_resources is importable
+      - name: Assert pluginmanager imports via the compat shim
+        working-directory: jarviscli
         run: |
-          if ! ./env/bin/python -c 'import pkg_resources'; then
-            echo "::error::pkg_resources is missing. setuptools dropped it in 82.0.0, pluginmanager imports it, and Jarvis will not start without it. Check the setuptools pin in installer/requirements-lean.txt."
+          if ! ../env/bin/python -W error::UserWarning -c 'import pkg_resources_compat, pluginmanager'; then
+            echo "::error::pluginmanager failed to import. It needs pkg_resources, which setuptools 82+ no longer ships; jarviscli/pkg_resources_compat.py is meant to cover that."
             exit 1
           fi
 

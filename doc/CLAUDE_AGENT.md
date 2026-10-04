@@ -144,6 +144,10 @@ The lean set was verified to resolve on Python 3.10, 3.12 and 3.13. Run
 
 Or during install: `./bootstrap.sh --autostart`.
 
+To open the desktop window (with voice) at login instead of a terminal, use
+`./scripts/install-autostart.sh --gui` after `./scripts/install-gui.sh`, or
+the window's own *Open at login* menu option. See [GUI.md](GUI.md).
+
 This writes `~/.config/autostart/jarvis.desktop`, which opens Jarvis in a
 terminal window when you log in. Test it without logging out:
 

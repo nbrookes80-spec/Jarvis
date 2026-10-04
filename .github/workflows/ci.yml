@@ -79,7 +79,10 @@ jobs:
         run: |
           pycodestyle --max-line-length=140 \
             --ignore=E722,W503,W504,E128 \
-            jarviscli/plugins/claude_agent.py
+            jarviscli/plugins/claude_agent.py \
+            jarviscli/pkg_resources_compat.py \
+            jarviscli/gui/*.py \
+            jarviscli/tests/test_gui_engine.py
 
       # The launcher runs the directory (python jarviscli), which puts jarviscli/
       # itself on sys.path -- so there is no importable "jarviscli" package at
@@ -111,7 +114,7 @@ jobs:
           for key in Type Name Exec Terminal; do
             grep -q "^$key=" "$entry" || { echo "::error::missing $key"; exit 1; }
           done
-          grep -q '^Exec=.*/scripts/jarvis-terminal.sh$' "$entry"
+          grep -q '^Exec="\?.*/scripts/jarvis-terminal.sh"\?$' "$entry"
           ./scripts/install-autostart.sh --remove
           test ! -f "$entry"
 
@@ -190,3 +193,61 @@ jobs:
             echo "::error::./jarvis ran but never reported loading plugins."
             exit 1
           }
+
+      # The desktop window's backend (gui/engine.py, gui/voice.py) imports no
+      # GTK, so it is tested headless against the real plugin set.
+      - name: GUI backend tests
+        working-directory: jarviscli
+        run: ../env/bin/python -m unittest tests.test_gui_engine -v
+
+      # --no-models: the ~210 MB of speech models are not needed to prove the
+      # installer works, and would make every run slow.
+      - name: Install the desktop window
+        run: ./scripts/install-gui.sh --yes --no-models
+
+      - name: Assert GUI dependencies import from env/
+        run: |
+          ./env/bin/python -c '
+          import gi
+          gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1")
+          from gi.repository import Gtk, Adw
+          import faster_whisper, openwakeword, piper, sounddevice
+          print("GTK", Gtk.get_major_version(), Gtk.get_minor_version(), "Adw", Adw.get_major_version(), Adw.get_minor_version())
+          '
+
+      # Opens the real window on GTK's headless Broadway backend and waits for
+      # the plugins to load. Catches GTK/libadwaita API mistakes in gui/app.py
+      # that no import check would. There is no audio device on the runner, so
+      # the microphone path reports itself unavailable, which is also tested.
+      - name: Assert the window opens and reaches ready
+        run: |
+          sudo apt-get install -y libgtk-4-bin
+          gtk4-broadwayd :5 &
+          sleep 1
+          GDK_BACKEND=broadway BROADWAY_DISPLAY=:5 timeout 240 ./env/bin/python - <<'PY'
+          import sys
+          sys.path.insert(0, "jarviscli")
+          from gi.repository import GLib
+          from gui import app as A
+          A.SETTINGS_FILE = "/tmp/jarvis-ci-gui.json"
+          A.Settings.DEFAULTS.update(speak_replies=False)
+          app = A.JarvisApp()
+          result = {}
+          def check():
+              if not app.ready:
+                  return True
+              app.window.send("binary 10")
+              GLib.timeout_add(3000, finish)
+              return False
+          def finish():
+              child = app.window.messages.get_last_child()
+              result["reply"] = child.get_first_child().get_label() if child else None
+              app.quit()
+              return False
+          GLib.timeout_add(250, check)
+          GLib.timeout_add_seconds(200, app.quit)
+          app.run(["jarvis-gui"])
+          print("plugins:", app.engine.plugin_count, "reply:", result.get("reply"))
+          if result.get("reply") != "1010":
+              sys.exit("::error::window did not show the reply to 'binary 10'")
+          PY

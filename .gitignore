@@ -29,3 +29,4 @@ __pycache__/
 
 # cinemagoer (movie plugin) writes a cache wherever it is run from
 cinemagoer.db
+jarvis-gui

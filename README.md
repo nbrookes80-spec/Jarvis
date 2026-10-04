@@ -103,6 +103,19 @@ resolves on Python 3.10 through 3.13; pass `--full` for the upstream list. See
 why `playsound` is dropped and how current setuptools (which no longer ships
 `pkg_resources`) is handled.
 
+### Desktop window and voice (Zorin OS / GNOME)
+
+A native GTK 4 / libadwaita window you can talk to. Say **"Hey Jarvis"**, press
+the microphone button (or Ctrl+Space), or type. Speech recognition and the voice
+both run offline.
+
+```bash
+./scripts/install-gui.sh --autostart   # or: ./bootstrap.sh --gui --autostart
+```
+
+It adds Jarvis to the app menu and, with `--autostart`, opens it at login.
+Details, settings and troubleshooting: [doc/GUI.md](doc/GUI.md).
+
 ### Chatting with Claude
 
 After installing, `claude login` once, then inside Jarvis:

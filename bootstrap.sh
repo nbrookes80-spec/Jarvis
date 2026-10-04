@@ -11,6 +11,8 @@
 #   ./bootstrap.sh --no-apt     # skip system packages
 #   ./bootstrap.sh --no-cli     # skip the Claude Code CLI
 #   ./bootstrap.sh --autostart  # also open Jarvis in a terminal on login
+#   ./bootstrap.sh --gui        # also install the desktop window with voice
+#                               #   (with --autostart, the window opens at login)
 #
 set -euo pipefail
 
@@ -23,6 +25,7 @@ USE_FULL=0
 DO_APT=1
 DO_CLI=1
 DO_AUTOSTART=0
+DO_GUI=0
 
 for arg in "$@"; do
   case "$arg" in
@@ -31,6 +34,7 @@ for arg in "$@"; do
     --no-apt) DO_APT=0 ;;
     --no-cli) DO_CLI=0 ;;
     --autostart) DO_AUTOSTART=1 ;;
+    --gui) DO_GUI=1 ;;
     # Prints the header block, however long it grows, and stops at the code.
     -h|--help) awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "$0"; exit 0 ;;
     *) echo "Unknown option: $arg" >&2; exit 2 ;;
@@ -283,7 +287,14 @@ else
   err "  ./jarvis"
 fi
 
-if [ "$DO_AUTOSTART" -eq 1 ]; then
+if [ "$DO_GUI" -eq 1 ]; then
+  echo
+  bold "9. Desktop window and voice"
+  GUI_ARGS=()
+  [ "$ASSUME_YES" -eq 1 ] && GUI_ARGS+=(--yes)
+  [ "$DO_AUTOSTART" -eq 1 ] && GUI_ARGS+=(--autostart)
+  "$ROOT/scripts/install-gui.sh" "${GUI_ARGS[@]}"
+elif [ "$DO_AUTOSTART" -eq 1 ]; then
   echo
   bold "9. Login autostart"
   "$ROOT/scripts/install-autostart.sh"
@@ -295,6 +306,11 @@ echo
 if [ "$DO_AUTOSTART" -eq 0 ]; then
   info "To open Jarvis in a terminal on login:"
   info "  ./scripts/install-autostart.sh"
+  echo
+fi
+if [ "$DO_GUI" -eq 0 ]; then
+  info "For the desktop window with voice (\"Hey Jarvis\"):"
+  info "  ./scripts/install-gui.sh"
   echo
 fi
 info "Next steps:"

@@ -271,6 +271,15 @@ else
   warn "could not inspect plugins; start ./jarvis and run 'help' to check"
 fi
 
+# Loading plugins is not the same as starting up: an import error in
+# jarviscli/__main__.py crashes ./jarvis while leaving PluginManager happy.
+if printf 'exit\n' | timeout 180 "$ROOT/jarvis" >/dev/null 2>&1; then
+  ok "./jarvis starts and exits cleanly"
+else
+  err "./jarvis failed to start. Run it directly to see the error:"
+  err "  ./jarvis"
+fi
+
 echo
 bold "Done."
 echo

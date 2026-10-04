@@ -80,6 +80,17 @@ jobs:
             --ignore=E722,W503,W504,E128 \
             jarviscli/plugins/claude_agent.py
 
+      # The launcher runs the directory (python jarviscli), which puts jarviscli/
+      # itself on sys.path -- so there is no importable "jarviscli" package at
+      # runtime and any such import is a startup crash. One shipped in
+      # jarviscli/__main__.py and got as far as a user's machine.
+      - name: Guard against jarviscli.* self-imports
+        run: |
+          if grep -rnE '^[[:space:]]*(from|import)[[:space:]]+jarviscli\.' jarviscli/ --include='*.py'; then
+            echo "::error::jarviscli/ is executed as a directory, so a 'jarviscli.' import raises ModuleNotFoundError on startup. Import the sibling instead, e.g. 'from plugins.message import send_join_message'."
+            exit 1
+          fi
+
       - name: Check bootstrap.sh syntax
         run: bash -n bootstrap.sh
 
@@ -140,3 +151,20 @@ jobs:
 
           print("claude, ai and ask all registered")
           PY
+
+      # Loading plugins is not the same as starting the program: the import bug
+      # above broke ./jarvis while leaving PluginManager perfectly happy. This
+      # step runs the launcher the way a user does. 'exit' is a real Jarvis
+      # command, so it reaches the prompt and then quits.
+      - name: Assert ./jarvis starts
+        run: |
+          if ! printf 'exit\n' | timeout 180 ./jarvis > jarvis-start.log 2>&1; then
+            cat jarvis-start.log
+            echo "::error::./jarvis exited non-zero on startup."
+            exit 1
+          fi
+          cat jarvis-start.log
+          grep -q 'plugins loaded' jarvis-start.log || {
+            echo "::error::./jarvis ran but never reported loading plugins."
+            exit 1
+          }

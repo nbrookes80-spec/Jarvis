@@ -1,11 +1,22 @@
-VERSION:=1.0
+# Shortcuts for common tasks. Each target is a thin wrapper around a script
+# documented in README.md.
 
-build_docker:
-	docker build -t jarvis:$(VERSION) .
+.PHONY: install gui run window test lint
 
-run_docker:
-	#Needs "xhost local:docker"
-	docker run -it --rm -e DISPLAY=${DISPLAY} -v /tmp/.X11-unix:/tmp/.X11-unix jarvis:$(VERSION)
+install:        ## Install Jarvis and the Claude plugin (Debian / Ubuntu / Zorin)
+	./bootstrap.sh
 
-autopep8:
-	@find . -iname "*.py" -not -path "./env/**" | xargs autopep8 --in-place --aggressive --aggressive --max-line-length=140
+gui:            ## Install the desktop window with offline voice
+	./scripts/install-gui.sh
+
+run:            ## Start Jarvis in this terminal
+	./Jarvis-AI
+
+window:         ## Open the desktop window
+	./jarvis-gui
+
+test:           ## Lint and run the unit tests
+	./test.sh
+
+lint:           ## Lint only
+	./env/bin/python -m flake8 --select E,W --max-line-length=140 --ignore E722,W503,W504,E128 jarviscli/ installer

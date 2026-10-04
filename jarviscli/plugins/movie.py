@@ -1,9 +1,36 @@
+import os
+
 import imdb
 from colorama import Fore, Style
 from plugin import plugin, require
 from functools import lru_cache
 
-app = imdb.IMDb()
+# Current Cinemagoer releases have no web access; they read a local SQLite
+# copy of IMDb's datasets. Opening it at import time put 'cinemagoer.db' in
+# whatever folder Jarvis was started from, and from a read-only one (/) the
+# whole plugin failed to load. Keep it in Jarvis's data folder, open it on
+# first use, and say plainly when the datasets have not been imported.
+IMDB_DB = os.path.expanduser(os.environ.get(
+    'JARVIS_IMDB_DB',
+    os.path.join(os.environ.get('XDG_DATA_HOME', '~/.local/share'), 'jarvis', 'cinemagoer.db')))
+NO_DATA = ("Movie lookups need IMDb's datasets imported into {} (several GB), "
+           "which is not set up. Ask me instead, e.g. 'who directed Inception?'")
+_app = None
+
+
+class MovieDataUnavailable(Exception):
+    pass
+
+
+def _get_app():
+    global _app
+    if _app is None:
+        os.makedirs(os.path.dirname(IMDB_DB), exist_ok=True)
+        try:
+            _app = imdb.IMDb('s3', uri='sqlite:///' + IMDB_DB)
+        except imdb.IMDbError:
+            raise MovieDataUnavailable(NO_DATA.format(IMDB_DB))
+    return _app
 
 
 def main(jarvis, movie):
@@ -19,7 +46,15 @@ def search_movie(jarvis, movie, all_results=False):
     if movie == '':
         jarvis.say("Please add movie name!", Fore.RED)
         return None
-    results = app.search_movie(movie, results=10)
+    try:
+        results = _get_app().search_movie(movie, results=10)
+    except MovieDataUnavailable as e:
+        jarvis.say(str(e), Fore.YELLOW)
+        return None
+    except imdb.IMDbError:
+        # The database opens but holds no datasets ("no such table").
+        jarvis.say(NO_DATA.format(IMDB_DB), Fore.YELLOW)
+        return None
     if not results:
         jarvis.say("Error: Did not find movie!", Fore.RED)
         return None
@@ -32,7 +67,7 @@ def search_movie(jarvis, movie, all_results=False):
 
 @lru_cache(maxsize=20, typed=False)
 def get_movie_by_id(movie_id):
-    return app.get_movie(movie_id)
+    return _get_app().get_movie(movie_id)
 
 
 @require(network=True)

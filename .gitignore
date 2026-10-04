@@ -16,7 +16,9 @@ MANIFEST.in
 setup.cfg
 setup.py
 jarvis.bat
+Jarvis-AI.bat
 jarvis
+Jarvis-AI
 jarviscli/data/key_timein.json
 jarviscli/data/Google_api_key.json
 VoterInfo.json
@@ -29,3 +31,4 @@ __pycache__/
 
 # cinemagoer (movie plugin) writes a cache wherever it is run from
 cinemagoer.db
+jarvis-gui

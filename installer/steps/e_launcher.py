@@ -30,7 +30,7 @@ def supported_shell_install(rc_line_to_add : str, confirm_addition: bool) -> boo
 
 # TODO Windows Install options?
 if unix_windows.IS_WIN:
-    fw = open('jarvis.bat', 'w')
+    fw = open('Jarvis-AI.bat', 'w')
     fw.write("""\
 @ECHO off
 CALL "{JARVISPATH}\\env\\Scripts\\activate.bat"
@@ -38,7 +38,7 @@ python "{JARVISPATH}\\jarviscli" %*
     """.format(JARVISPATH=os.getcwd()))
     section("FINISH")
 
-    printlog("Installation Successful! Use 'jarvis' in cmd to start Jarvis!")
+    printlog("Installation Successful! Use 'Jarvis-AI' in cmd to start Jarvis!")
 else:
 
     section("Write Jarvis starter")
@@ -49,15 +49,15 @@ source "{PATH}/env/bin/activate"
 python "{PATH}/jarviscli" "$@"
     """
 
-    fw = open('jarvis', 'w')
+    fw = open('Jarvis-AI', 'w')
     fw.write(JARVIS_MACRO.format(PATH=os.getcwd()))
     fw.close()
 
-    shell('chmod +x jarvis').should_not_fail()
+    shell('chmod +x Jarvis-AI').should_not_fail()
     # get the SHELL of the current user
     user_shell = get_default_shell()
     _do_nothing_str = "Do nothing (Call Jarvis by full path)"
-    install_options = [("Install jarvis /usr/local/bin starter (requires root)", 0), ]
+    install_options = [("Install Jarvis-AI /usr/local/bin starter (requires root)", 0), ]
     home = os.getenv("HOME")
     xdg_install_path = "{}/.local/bin".format(home)
     if user_shell in SUPPORTED_SHELLS:
@@ -65,7 +65,7 @@ python "{PATH}/jarviscli" "$@"
             ("Add {} to $PATH (.{}rc)".format(os.getcwd(), user_shell, ), 1),
         ]
         if home != None and os.path.exists(xdg_install_path):
-            install_options += [("Install jarvis to {}/.local/bin".format(home), 2)]
+            install_options += [("Install Jarvis-AI to {}/.local/bin".format(home), 2)]
         install_options += [(_do_nothing_str, 3)]
     else:
         install_options += [
@@ -74,19 +74,19 @@ python "{PATH}/jarviscli" "$@"
     selection = user_input(install_options)
 
     if selection == 0:
-        os.system('sudo cp jarvis /usr/local/bin')
+        os.system('sudo cp Jarvis-AI /usr/local/bin')
     elif user_shell in SUPPORTED_SHELLS:
         if selection == 1:
             line_to_add = 'export PATH="$PATH:{}"'.format(os.getcwd())
             supported_shell_install(line_to_add, True)
         elif selection == 2:
-            os.system('cp jarvis {}'.format(xdg_install_path))
+            os.system('cp Jarvis-AI {}'.format(xdg_install_path))
             line_to_add = 'export PATH="$PATH:{}"'.format(xdg_install_path)
             supported_shell_install(line_to_add, True)
 
     printlog('\n\nInstallation complete. Try using Jarvis!')
     if selection == 0 or (selection == 1 and user_shell in SUPPORTED_SHELLS):
-        printlog('$ jarvis')
+        printlog('$ Jarvis-AI')
     else:
-        printlog('$ {}/jarvis'.format(os.getcwd()))
+        printlog('$ {}/Jarvis-AI'.format(os.getcwd()))
 

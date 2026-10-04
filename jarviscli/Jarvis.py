@@ -8,12 +8,31 @@ import sys
 import tempfile
 from utilities.GeneralUtilities import print_say
 from CmdInterpreter import CmdInterpreter
+from packages.ai_brain import brain
 
 # register hist path
 HISTORY_FILENAME = tempfile.TemporaryFile('w+t')
 
 
 PROMPT_CHAR = '~>'
+
+# Everyday phrasings that the word-matching in find_action() cannot place,
+# because the plugin's name is two words ("check time") or the key word is
+# not first. Matched against the lower-cased input; first match wins.
+NATURAL_ROUTES = [
+    # "what time is it in tokyo", "time in london", "what's the time in rome"
+    (re.compile(r"^(?:what(?:'s| is)?\s+)?(?:the\s+)?(?:current\s+)?(?:local\s+)?"
+                r"time(?:\s+is\s+it)?(?:\s+now)?\s+(?:in|at)\s+(.+)$"),
+     r"check time in \1"),
+    # "what's the time", "what time is it now"
+    (re.compile(r"^(?:what(?:'s| is)\s+the\s+time|what time is it)(?:\s+now)?$"),
+     "clock"),
+    # "what's the forecast for london", "weather forecast"
+    (re.compile(r"^(?:what(?:'s| is)?\s+)?(?:the\s+)?(?:weather\s+)?forecast\b(.*)$"),
+     r"check forecast \1"),
+    # "do i need an umbrella (in london)"
+    (re.compile(r"^.*\bumbrella\b(.*)$"), r"weather umbrella \1"),
+]
 
 """
     AUTHORS' SCOPE:
@@ -78,13 +97,43 @@ class Jarvis(CmdInterpreter, object):
         return dirs_abs
 
     def default(self, data):
-        """Jarvis let's you know if an error has occurred."""
+        """No command matched: hand the original wording to the AI fallback."""
+        question = getattr(self, '_raw_line', '') or data
+        if brain.enabled and brain.available and question.strip() and question != 'None':
+            try:
+                self._api.say(brain.ask(question), Fore.CYAN)
+                return
+            except RuntimeError as e:
+                self._api.say(str(e), Fore.MAGENTA)
+                return
         print_say("I could not identify your command...", self, Fore.MAGENTA)
 
     def precmd(self, line):
         """Hook that executes before every command."""
         words = line.split()
         HISTORY_FILENAME.write(line + '\n')
+        # Kept verbatim for the AI fallback; parse_input() lower-cases and
+        # strips punctuation, which is right for matching commands but mangles
+        # a question ("Who wrote Hamlet?" -> "who wrote hamlet").
+        self._raw_line = line.strip()
+
+        # People address it by name: "Hey Jarvis, how are you?". Drop that,
+        # unless it is a real command of the 'jarvis' plugin ("jarvis tour").
+        named = re.match(r"^(?:(?:hey|hi|hello|ok|okay)\s+)?jarvis\b[\s,.!?]*(.*)$",
+                         line.strip(), re.IGNORECASE)
+        if named and not named.group(1):
+            return '__ai__'     # just "hey jarvis": no command, a greeting for the AI
+        if named and named.group(1):
+            rest = named.group(1)
+            sub = self._plugin_manager.get_plugins().get('jarvis')
+            subs = set(sub.get_plugins().keys()) if sub is not None else set()
+            if not subs or rest.split()[0].lower() not in subs:
+                return self.precmd(rest)
+
+        # Questions for Claude or the local model go through untouched, for the
+        # same reason, and so a word inside them cannot select another command.
+        if words and words[0].lower() in ('claude', 'ai', 'ask', 'local', 'research', 'draft'):
+            return words[0].lower() + line.strip()[len(words[0]):]
 
         # append calculate keyword to front of leading char digit (or '-') in line
         if words and (words[0].isdigit() or line[0] == "-"):
@@ -128,6 +177,10 @@ class Jarvis(CmdInterpreter, object):
 
             # input sanitisation to not mess up urls / numbers
             data = self.regex_dot.sub("", data)
+
+        for pattern, replacement in NATURAL_ROUTES:
+            if pattern.match(data):
+                return pattern.sub(replacement, data).strip()
 
         # Check if Jarvis has a fixed response to this data
         if data in self.fixed_responses:

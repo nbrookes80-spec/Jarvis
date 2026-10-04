@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 #
-# Open Jarvis in a terminal window when you log in.
+# Open Jarvis when you log in: in a terminal window, or as the desktop app.
 #
-#   ./scripts/install-autostart.sh            install
+#   ./scripts/install-autostart.sh            install (terminal)
+#   ./scripts/install-autostart.sh --gui      install (desktop window, with voice)
 #   ./scripts/install-autostart.sh --remove   uninstall
 #   ./scripts/install-autostart.sh --status   show what is currently set
 #
@@ -14,6 +15,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LAUNCHER="$ROOT/scripts/jarvis-terminal.sh"
+COMMENT="in a terminal"
 AUTOSTART_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
 ENTRY="$AUTOSTART_DIR/jarvis.desktop"
 
@@ -43,10 +45,19 @@ case "${1:-}" in
     fi
     exit 0
     ;;
+  --gui)
+    # The window app; ./scripts/install-gui.sh writes this launcher.
+    LAUNCHER="$ROOT/jarvis-gui"
+    COMMENT="as the desktop window"
+    [ -x "$LAUNCHER" ] || {
+      echo "$LAUNCHER not found. Run ./scripts/install-gui.sh first." >&2
+      exit 1
+    }
+    ;;
   "") ;;
   *)
     echo "Unknown option: $1" >&2
-    echo "Use --remove, --status, or no argument to install." >&2
+    echo "Use --gui, --remove, --status, or no argument to install." >&2
     exit 2
     ;;
 esac
@@ -56,8 +67,8 @@ esac
   exit 1
 }
 
-if [ ! -x "$ROOT/jarvis" ]; then
-  warn "$ROOT/jarvis does not exist yet."
+if [ ! -x "$ROOT/Jarvis-AI" ]; then
+  warn "$ROOT/Jarvis-AI does not exist yet."
   warn "Run ./bootstrap.sh first, or the login window will just report that."
 fi
 
@@ -67,9 +78,9 @@ cat > "$ENTRY" <<ENTRY_EOF
 [Desktop Entry]
 Type=Application
 Name=Jarvis
-Comment=Open the Jarvis assistant in a terminal
-Exec=$LAUNCHER
-Icon=utilities-terminal
+Comment=Open the Jarvis assistant $COMMENT
+Exec="$LAUNCHER"
+Icon=$([ "$LAUNCHER" = "$ROOT/jarvis-gui" ] && echo io.github.nbrookes80_spec.Jarvis || echo utilities-terminal)
 Terminal=false
 NoDisplay=false
 Hidden=false
@@ -77,6 +88,6 @@ X-GNOME-Autostart-enabled=true
 ENTRY_EOF
 
 ok "installed $ENTRY"
-info "Jarvis will open in a terminal next time you log in."
+info "Jarvis will open next time you log in ($COMMENT)."
 info "Test it now without logging out:  $LAUNCHER"
 info "Undo:                             $0 --remove"

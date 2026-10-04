@@ -11,6 +11,8 @@
 #   ./bootstrap.sh --no-apt     # skip system packages
 #   ./bootstrap.sh --no-cli     # skip the Claude Code CLI
 #   ./bootstrap.sh --autostart  # also open Jarvis in a terminal on login
+#   ./bootstrap.sh --gui        # also install the desktop window with voice
+#                               #   (with --autostart, the window opens at login)
 #
 set -euo pipefail
 
@@ -23,6 +25,7 @@ USE_FULL=0
 DO_APT=1
 DO_CLI=1
 DO_AUTOSTART=0
+DO_GUI=0
 
 for arg in "$@"; do
   case "$arg" in
@@ -31,6 +34,7 @@ for arg in "$@"; do
     --no-apt) DO_APT=0 ;;
     --no-cli) DO_CLI=0 ;;
     --autostart) DO_AUTOSTART=1 ;;
+    --gui) DO_GUI=1 ;;
     # Prints the header block, however long it grows, and stops at the code.
     -h|--help) awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "$0"; exit 0 ;;
     *) echo "Unknown option: $arg" >&2; exit 2 ;;
@@ -215,21 +219,34 @@ fi
 
 bold "7. Launcher"
 
-cat > "$ROOT/jarvis" <<LAUNCHER
+# The terminal command is "Jarvis-AI". Earlier versions of this script wrote
+# ./jarvis and linked ~/.local/bin/jarvis; remove those if they are ours, so
+# nothing is left pointing at the old name.
+LAUNCHER_NAME="Jarvis-AI"
+cat > "$ROOT/$LAUNCHER_NAME" <<LAUNCHER
 #!/usr/bin/env bash
 source "$VENV/bin/activate"
 exec python "$ROOT/jarviscli" "\$@"
 LAUNCHER
-chmod +x "$ROOT/jarvis"
-ok "wrote ./jarvis"
+chmod +x "$ROOT/$LAUNCHER_NAME"
+ok "wrote ./$LAUNCHER_NAME"
 
 LOCAL_BIN="$HOME/.local/bin"
 if [ -L "$LOCAL_BIN/jarvis" ] && [ "$(readlink -f "$LOCAL_BIN/jarvis")" = "$ROOT/jarvis" ]; then
+  rm -f "$LOCAL_BIN/jarvis"
+  ok "removed the old ~/.local/bin/jarvis link"
+fi
+if [ -f "$ROOT/jarvis" ] && grep -q 'exec python ".*/jarviscli"' "$ROOT/jarvis" 2>/dev/null; then
+  rm -f "$ROOT/jarvis"
+  ok "removed the old ./jarvis launcher"
+fi
+
+if [ -L "$LOCAL_BIN/$LAUNCHER_NAME" ] && [ "$(readlink -f "$LOCAL_BIN/$LAUNCHER_NAME")" = "$ROOT/$LAUNCHER_NAME" ]; then
   ok "already linked into ~/.local/bin"
-elif confirm "Link ./jarvis into ~/.local/bin so you can run it from anywhere?"; then
+elif confirm "Link ./$LAUNCHER_NAME into ~/.local/bin so you can run it from anywhere?"; then
   mkdir -p "$LOCAL_BIN"
-  ln -sf "$ROOT/jarvis" "$LOCAL_BIN/jarvis"
-  ok "linked $LOCAL_BIN/jarvis"
+  ln -sf "$ROOT/$LAUNCHER_NAME" "$LOCAL_BIN/$LAUNCHER_NAME"
+  ok "linked $LOCAL_BIN/$LAUNCHER_NAME"
   case ":$PATH:" in
     *":$LOCAL_BIN:"*) ;;
     *) warn "$LOCAL_BIN is not on your PATH. Add this to ~/.bashrc:"
@@ -271,19 +288,26 @@ if [ -n "$VERIFY" ]; then
     err "claude plugin did NOT register"
   fi
 else
-  warn "could not inspect plugins; start ./jarvis and run 'help' to check"
+  warn "could not inspect plugins; start ./Jarvis-AI and run 'help' to check"
 fi
 
 # Loading plugins is not the same as starting up: an import error in
-# jarviscli/__main__.py crashes ./jarvis while leaving PluginManager happy.
-if printf 'exit\n' | timeout 180 "$ROOT/jarvis" >/dev/null 2>&1; then
-  ok "./jarvis starts and exits cleanly"
+# jarviscli/__main__.py crashes ./Jarvis-AI while leaving PluginManager happy.
+if printf 'exit\n' | timeout 180 "$ROOT/$LAUNCHER_NAME" >/dev/null 2>&1; then
+  ok "./$LAUNCHER_NAME starts and exits cleanly"
 else
-  err "./jarvis failed to start. Run it directly to see the error:"
-  err "  ./jarvis"
+  err "./$LAUNCHER_NAME failed to start. Run it directly to see the error:"
+  err "  ./$LAUNCHER_NAME"
 fi
 
-if [ "$DO_AUTOSTART" -eq 1 ]; then
+if [ "$DO_GUI" -eq 1 ]; then
+  echo
+  bold "9. Desktop window and voice"
+  GUI_ARGS=()
+  [ "$ASSUME_YES" -eq 1 ] && GUI_ARGS+=(--yes)
+  [ "$DO_AUTOSTART" -eq 1 ] && GUI_ARGS+=(--autostart)
+  "$ROOT/scripts/install-gui.sh" "${GUI_ARGS[@]}"
+elif [ "$DO_AUTOSTART" -eq 1 ]; then
   echo
   bold "9. Login autostart"
   "$ROOT/scripts/install-autostart.sh"
@@ -297,9 +321,14 @@ if [ "$DO_AUTOSTART" -eq 0 ]; then
   info "  ./scripts/install-autostart.sh"
   echo
 fi
+if [ "$DO_GUI" -eq 0 ]; then
+  info "For the desktop window with voice (\"Hey Jarvis\"):"
+  info "  ./scripts/install-gui.sh"
+  echo
+fi
 info "Next steps:"
 info "  1. Authenticate Claude:   claude login"
-info "  2. Start Jarvis:          ./jarvis       (or just: jarvis)"
+info "  2. Start Jarvis:          ./Jarvis-AI    (or just: Jarvis-AI)"
 info "  3. Inside Jarvis:         claude what is using my disk space?"
 info "                            claude status"
 info "                            claude model sonnet"

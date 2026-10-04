@@ -1,0 +1,16 @@
+# Desktop window and offline voice for Jarvis (jarviscli/gui).
+# Installed by scripts/install-gui.sh on top of requirements-lean.txt.
+#
+# The window itself uses GTK 4 + libadwaita through PyGObject. That comes from
+# the system (python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1), not from pip:
+# building PyGObject from source needs a C toolchain and -dev headers, while
+# Zorin and Ubuntu already ship a matching binary. install-gui.sh links it in.
+
+numpy
+sounddevice               # microphone + speaker via PortAudio (libportaudio2)
+faster-whisper            # offline speech-to-text
+piper-tts                 # offline neural voice (GPL-3.0; used, not bundled)
+
+# Pinned: 0.4.0 bundles the hey_jarvis model and runs on onnxruntime alone.
+# 0.5+ hard-requires tflite-runtime on Linux, which has no Python 3.12 wheels.
+openwakeword==0.4.0

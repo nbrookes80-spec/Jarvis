@@ -1,0 +1,6 @@
+# Test and lint tooling: pip install -r installer/requirements-dev.txt
+# Several older tests import the standalone `mock` package; without it they
+# fail at import (tests.test_weatherIn, test_near_me, test_directions_to, ...).
+mock
+flake8
+pycodestyle

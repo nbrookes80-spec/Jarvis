@@ -131,8 +131,10 @@ personal ones in `~/.claude/skills/`.
 
 ## Changes to upstream dependencies
 
-`installer/requirements-lean.txt` is a trimmed version of
-`installer/requirements.txt`. Two findings drove it:
+`installer/requirements-lean.txt` is the runtime dependency list, trimmed from
+upstream's `installer/requirements.txt`; that file now just includes the lean
+set plus `requirements-dev.txt` (test and lint tools). Two findings drove the
+trim:
 
 1. **`playsound` is removed.** Nothing in the repository imports it. On Python
    3.12+ upstream resolves it from `github.com/taconi/playsound`, which no longer
@@ -201,8 +203,8 @@ readable rather than flashing past.
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs on pushes and pull requests. The repo previously
-had no working CI at all — `.travis.yml` points at travis-ci.org, which has been
-shut down for years.
+had no working CI at all: its `.travis.yml` (since removed) pointed at
+travis-ci.org, which has been shut down for years.
 
 Gated:
 

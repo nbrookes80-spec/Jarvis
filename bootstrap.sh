@@ -7,7 +7,7 @@
 #
 #   ./bootstrap.sh              # interactive, lean dependency set
 #   ./bootstrap.sh --yes        # no prompts
-#   ./bootstrap.sh --full       # upstream installer/requirements.txt instead
+#   ./bootstrap.sh --full       # also install test and lint tools
 #   ./bootstrap.sh --no-apt     # skip system packages
 #   ./bootstrap.sh --no-cli     # skip the Claude Code CLI
 #   ./bootstrap.sh --autostart  # also open Jarvis in a terminal on login
@@ -134,8 +134,7 @@ bold "4. Python dependencies"
 
 if [ "$USE_FULL" -eq 1 ]; then
   REQ="installer/requirements.txt"
-  warn "Using the full upstream set. On Python 3.12+ this is expected to fail:"
-  warn "it pins a playsound fork at a GitHub URL that no longer exists."
+  info "full set: runtime dependencies plus test and lint tools"
 else
   REQ="installer/requirements-lean.txt"
 fi

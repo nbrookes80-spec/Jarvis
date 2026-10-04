@@ -1,6 +1,6 @@
 # Jarvis
 
-[![Build Status](https://travis-ci.org/sukeesh/Jarvis.svg?branch=master)](https://travis-ci.org/sukeesh/Jarvis) [![Join the chat at https://gitter.im/Sukeesh_Jarvis/Lobby](https://badges.gitter.im/Sukeesh_Jarvis/Lobby.svg)](https://gitter.im/Sukeesh_Jarvis/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![CI](https://github.com/nbrookes80-spec/Jarvis/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/nbrookes80-spec/Jarvis/actions/workflows/ci.yml)
 
 A Personal Non-AI Assistant for Linux, MacOS and Windows
 
@@ -72,21 +72,22 @@ Jarvis is a simple personal assistant for Linux, MacOS and Windows which works o
 1. **Clone the Repository**
 
    ```bash
-   git clone https://github.com/sukeesh/Jarvis.git
+   git clone https://github.com/nbrookes80-spec/Jarvis.git jarvis-claude
+   cd jarvis-claude
    ```
 
 2. **Run the installer**
-   ```bash
-   python installer
-   ```
-   If that doesn't work, try:
+
+   On Debian, Ubuntu or Zorin OS use `./bootstrap.sh` (below). On other systems:
    ```bash
    python3 installer
    ```
 
+The project plan, current state and next steps are in [doc/PROJECT_PLAN.md](doc/PROJECT_PLAN.md).
+
 #### Debian / Ubuntu / Zorin: `./bootstrap.sh`
 
-On Debian-family systems `./bootstrap.sh` is an alternative to `python installer`.
+On Debian-family systems `./bootstrap.sh` is the recommended installer.
 It installs the system packages the upstream installer assumes you already have,
 is safe to re-run, prints every `sudo` command before running it, and sets up the
 [Claude agent plugin](doc/CLAUDE_AGENT.md).
@@ -97,8 +98,8 @@ is safe to re-run, prints every `sudo` command before running it, and sets up th
 ./bootstrap.sh --help     # all flags
 ```
 
-It installs a trimmed dependency set (`installer/requirements-lean.txt`) that
-resolves on Python 3.10 through 3.13; pass `--full` for the upstream list. See
+It installs the runtime dependencies (`installer/requirements-lean.txt`), which
+resolve on Python 3.10 through 3.13; `--full` adds the test and lint tools. See
 [doc/CLAUDE_AGENT.md](doc/CLAUDE_AGENT.md#changes-to-upstream-dependencies) for
 why `playsound` is dropped and how current setuptools (which no longer ships
 `pkg_resources`) is handled.
@@ -230,8 +231,9 @@ Creating a test is optional but never a bad idea ;).
 
 ### How to run tests:
 
- Run `test.sh`
+ Install the test tools once, then run `test.sh` (or `make test`):
  ```bash
+ ./env/bin/pip install -r installer/requirements-dev.txt
  ./test.sh
  ```
 ## Optional Dependencies
@@ -240,15 +242,6 @@ Creating a test is optional but never a bad idea ;).
 - Portaudio + python-devel packages for voice control
 - ``notify-send`` on Linux if you want to receive *nice* and desktop-notification instead of *ugly* pop up windows (e.g. Ubuntu do ``sudo apt install libnotify-bin``)
 - ``ffmpeg`` if you want ``music`` to download songs as .mp3 instead of .webm
-
-## Docker
-
-Run with docker (docker needs to be installed and running):
-
-```
-[sudo] make build_docker
-[sudo] make run_docker
-```
 
 ## Authors
 

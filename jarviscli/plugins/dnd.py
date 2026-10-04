@@ -1,4 +1,5 @@
 from plugin import plugin
+import os
 import random
 
 @plugin("dnd")
@@ -144,7 +145,8 @@ def parseRoll(userInput):
         adv = 0
     return numberOfDice, dieType, adv
 
-loots_dictionary = 'jarviscli/data/dnd_files/loots.txt'
+FILE_PATH = os.path.abspath(os.path.dirname(__file__))
+loots_dictionary = os.path.join(FILE_PATH, '../data/dnd_files/loots.txt')
 loots = loadLoots(loots_dictionary)
 names = {
         "dwarf": {

@@ -1,5 +1,6 @@
 from inspect import cleandoc, isclass
 
+import pkg_resources_compat  # noqa: F401  (must precede pluginmanager)
 import pluginmanager
 from requests import ConnectionError
 

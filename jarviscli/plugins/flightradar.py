@@ -1,5 +1,8 @@
 from plugin import plugin, require
-from FlightRadar24.api import FlightRadar24API
+try:
+    from FlightRadarAPI import FlightRadar24API
+except ImportError:  # releases before 1.4 shipped the module as FlightRadar24
+    from FlightRadar24.api import FlightRadar24API
 flightapi = FlightRadar24API()
 
 @require(network=True)

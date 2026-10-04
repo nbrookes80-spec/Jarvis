@@ -1,0 +1,35 @@
+{
+  "_comment": [
+    "Copy this file to .mcp.json to give the Jarvis claude plugin MCP connectors.",
+    "The plugin picks it up automatically on the next 'claude' command.",
+    "Package versions below were verified to exist on npm; the paths are examples.",
+    "Remove any server you do not want -- each one Claude can reach is extra reach."
+  ],
+
+  "mcpServers": {
+    "filesystem": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/home/CHANGEME/Documents",
+        "/home/CHANGEME/Downloads"
+      ]
+    },
+
+    "memory": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"]
+    },
+
+    "example_remote_http": {
+      "type": "http",
+      "url": "https://example.invalid/mcp",
+      "headers": {
+        "Authorization": "Bearer ${MY_MCP_TOKEN}"
+      }
+    }
+  }
+}

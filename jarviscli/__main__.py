@@ -2,7 +2,7 @@
 import Jarvis
 import colorama
 import sys
-from jarviscli.plugins.message import send_join_message
+from plugins.message import send_join_message
 
 
 def check_python_version():

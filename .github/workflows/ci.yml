@@ -21,8 +21,11 @@ name: CI
 # Fixing either is worthwhile, but it is separate work, not this workflow's job.
 
 on:
+  # Only master on push. Branch pushes are covered by pull_request, and listing
+  # them here too makes every commit on a branch with an open PR run the whole
+  # workflow twice.
   push:
-    branches: [master, 'claude/**']
+    branches: [master]
   pull_request:
   workflow_dispatch:
 

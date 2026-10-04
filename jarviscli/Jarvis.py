@@ -8,7 +8,7 @@ import sys
 import tempfile
 from utilities.GeneralUtilities import print_say
 from CmdInterpreter import CmdInterpreter
-from packages.ai_brain import brain
+from packages.ai_brain import brain, router
 
 # register hist path
 HISTORY_FILENAME = tempfile.TemporaryFile('w+t')
@@ -97,16 +97,36 @@ class Jarvis(CmdInterpreter, object):
         return dirs_abs
 
     def default(self, data):
-        """No command matched: hand the original wording to the AI fallback."""
+        """No command matched: hand the original wording to the AI fallback.
+
+        Claude (Haiku by default) answers first: quick and cheap. When it
+        cannot (offline, not signed in, spend cap reached), the free local
+        model answers instead, if it is installed; it is slower, so say so.
+        """
         question = getattr(self, '_raw_line', '') or data
-        if brain.enabled and brain.available and question.strip() and question != 'None':
+        if not brain.enabled or not question.strip() or question == 'None':
+            print_say("I could not identify your command...", self, Fore.MAGENTA)
+            return
+
+        if brain.available:
             try:
                 self._api.say(brain.ask(question), Fore.CYAN)
                 return
             except RuntimeError as e:
+                claude_problem = str(e)
+        else:
+            claude_problem = 'AI answers are unavailable: %s.' % brain.unavailable_reason()
+
+        from packages import local_llm
+        if local_llm.available():
+            self._api.say("Claude isn't reachable, so the local model is answering. "
+                          "It takes about half a minute.", Fore.MAGENTA)
+            try:
+                self._api.say(local_llm.ask(question).strip(), Fore.CYAN)
+            except local_llm.LocalLLMError as e:
                 self._api.say(str(e), Fore.MAGENTA)
-                return
-        print_say("I could not identify your command...", self, Fore.MAGENTA)
+            return
+        self._api.say(claude_problem, Fore.MAGENTA)
 
     def precmd(self, line):
         """Hook that executes before every command."""
@@ -206,7 +226,29 @@ class Jarvis(CmdInterpreter, object):
             # to an action
             output = self.find_action(
                 data, self._plugin_manager.get_plugins().keys())
+            if self._keyword_was_hijacked(data, output):
+                return '__ai__'
         return output
+
+    def _keyword_was_hijacked(self, data, output):
+        """Ask Claude whether a mid-sentence keyword match is really wanted.
+
+        find_action() picks any command name found anywhere in the sentence,
+        so "how far is the moon from earth" ran the moon-phase command. When
+        the command word is not the first word of a longer request, Haiku
+        confirms the match (about $0.001); if it says no, the request goes to
+        the AI answer path instead. Without Claude, the match stands.
+        """
+        if output == "None" or not (brain.enabled and brain.available):
+            return False
+        words = data.split()
+        command = output.split()[0]
+        if len(words) < 4 or words[0] == command:
+            return False
+        plugin = self._plugin_manager.get_plugins().get(command)
+        description = plugin.get_doc() if plugin is not None else ''
+        request = getattr(self, '_raw_line', '') or data
+        return router.confirms(request, command, description) is False
 
     def find_action(self, data, actions):
         """Checks if input is a defined action.
@@ -255,4 +297,6 @@ class Jarvis(CmdInterpreter, object):
         if command:
             self.execute_once(command)
         else:
+            brain.warm()
+            router.warm()
             self.cmdloop()

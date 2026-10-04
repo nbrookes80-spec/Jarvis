@@ -10,7 +10,7 @@ gi.require_version('Adw', '1')
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from gui import voice  # noqa: E402
-from packages.ai_brain import brain  # noqa: E402
+from packages.ai_brain import brain, router  # noqa: E402
 from gui.engine import EXIT_WORDS, JarvisEngine  # noqa: E402
 
 APP_ID = 'io.github.nbrookes80_spec.Jarvis'
@@ -62,6 +62,7 @@ class Settings(dict):
         'wake_threshold': 0.5,
         'ai_fallback': True,
         'ai_model': 'haiku',
+        'ai_router': True,
     }
 
     def __init__(self):
@@ -146,6 +147,7 @@ class JarvisWindow(Adw.ApplicationWindow):
         menu.append_section(None, voice_section)
         ai_section = Gio.Menu()
         ai_section.append('Answer other questions with Claude', 'app.ai')
+        ai_section.append('Let Claude check which command you meant', 'app.ai-router')
         models = Gio.Menu()
         for key, label in (('haiku', 'Haiku 4.5 (cheapest)'), ('sonnet', 'Sonnet 5.5'),
                            ('opus', 'Opus 5.5 (most capable)')):
@@ -397,6 +399,11 @@ class JarvisApp(Adw.Application):
             self.add_action(action)
         brain.enabled = bool(self.settings['ai_fallback'])
         brain.set_model(self.settings['ai_model'])
+        router.enabled = bool(self.settings['ai_router'])
+        action = Gio.SimpleAction.new_stateful(
+            'ai-router', None, GLib.Variant.new_boolean(router.enabled))
+        action.connect('change-state', self._on_toggle, 'ai_router')
+        self.add_action(action)
         action = Gio.SimpleAction.new_stateful(
             'ai', None, GLib.Variant.new_boolean(brain.enabled))
         action.connect('change-state', self._on_ai_toggle)
@@ -478,6 +485,8 @@ class JarvisApp(Adw.Application):
             self._on_listen_state(self.listener.state)
         if key == 'speak_replies' and not self.settings[key]:
             self.speaker.stop()
+        if key == 'ai_router':
+            router.enabled = self.settings[key]
 
     def _on_ai_toggle(self, action, value):
         action.set_state(value)

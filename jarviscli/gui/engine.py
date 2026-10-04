@@ -259,6 +259,9 @@ class JarvisEngine(object):
             return
         self._loading = False
         self._call(self.on_ready, self.plugin_count)
+        from packages.ai_brain import brain, router
+        brain.warm()
+        router.warm()
 
         while True:
             command = self._commands.get()

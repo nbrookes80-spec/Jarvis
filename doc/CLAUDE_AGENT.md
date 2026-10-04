@@ -126,6 +126,34 @@ affected plugin (`jarviscli/PluginManager.py:21-31`). To restore any of them:
 The lean set was verified to resolve on Python 3.10, 3.12 and 3.13. Run
 `./bootstrap.sh --full` to use the upstream file instead.
 
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on pushes and pull requests. The repo previously
+had no working CI at all — `.travis.yml` points at travis-ci.org, which has been
+shut down for years.
+
+Gated:
+
+- `installer/requirements-lean.txt` resolves on Python 3.10, 3.11, 3.12 and 3.13
+  (`pip install --dry-run`, so a requirement pinned to a URL that stops existing
+  fails in seconds — the exact failure mode that broke Python 3.12+)
+- `pkg_resources` still imports, i.e. the `setuptools<82` pin is holding
+- `claude_agent_sdk` imports
+- `./bootstrap.sh --yes --no-cli` completes, and `claude`, `ai` and `ask` all
+  register afterwards
+- lint on `jarviscli/plugins/claude_agent.py`, `bash -n bootstrap.sh`, JSON
+  validity of `.mcp.json.example`
+
+Deliberately **not** gated, because both already fail on `master` and would make
+CI permanently red without telling you anything:
+
+- the full unittest suite — 294 tests, 6 failures and 37 errors, mostly
+  third-party APIs that no longer respond
+- repo-wide lint — roughly 1,968 findings under the project's own settings in
+  `test.sh`
+
+Both are worth fixing. Neither is this workflow's job.
+
 ## Troubleshooting
 
 **`The claude-agent-sdk package is not installed`** — `./env/bin/pip install

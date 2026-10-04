@@ -1,0 +1,139 @@
+name: CI
+
+# What this gates, and what it deliberately does not.
+#
+# Gated, because each one is deterministic and was red for a real reason at
+# least once:
+#   * dependency resolution on every supported Python version -- this is the
+#     check that catches a requirement pinned to a URL that has stopped
+#     existing, which is exactly how installs broke on Python 3.12+
+#   * pkg_resources still importable -- pluginmanager needs it and setuptools
+#     dropped it in 82.0.0, which stops Jarvis starting at all
+#   * the claude plugin actually registering after a real install
+#   * lint on the files this workflow's own branch introduced
+#
+# NOT gated, and why. Both of these are already failing on master, so turning
+# them into required checks would make CI permanently red and tell you nothing:
+#   * the full unittest suite -- 294 tests, 6 failures and 37 errors, largely
+#     third-party APIs that no longer answer
+#   * repo-wide lint -- ~1,968 findings under the project's own settings in
+#     test.sh
+# Fixing either is worthwhile, but it is separate work, not this workflow's job.
+
+on:
+  push:
+    branches: [master, 'claude/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  resolve:
+    name: Resolve deps (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.10', '3.11', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      # --dry-run resolves and downloads metadata without installing, so a dead
+      # URL or an unsatisfiable pin fails here in seconds.
+      - name: Resolve installer/requirements-lean.txt
+        run: pip install --dry-run --requirement installer/requirements-lean.txt
+
+  static:
+    name: Static checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install linter
+        run: python -m pip install --upgrade pip pycodestyle
+
+      # Scoped to files added on this branch. Repo-wide lint is not clean (see
+      # the header), so a wider scope would gate nothing and fail everything.
+      - name: Lint new sources
+        run: |
+          pycodestyle --max-line-length=140 \
+            --ignore=E722,W503,W504,E128 \
+            jarviscli/plugins/claude_agent.py
+
+      - name: Check bootstrap.sh syntax
+        run: bash -n bootstrap.sh
+
+      - name: Check .mcp.json.example is valid JSON
+        run: python -c "import json; json.load(open('.mcp.json.example'))"
+
+  smoke:
+    name: Install and load plugins
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Exercises the real installer rather than a reimplementation of it,
+      # including its apt step. --no-cli because the Claude Code CLI needs an
+      # authenticated login that CI does not have.
+      - name: Run bootstrap.sh
+        run: ./bootstrap.sh --yes --no-cli
+
+      # bootstrap.sh reports problems but intentionally exits 0 so a partial
+      # install is still usable, so assert the invariants separately here.
+      - name: Assert pkg_resources is importable
+        run: |
+          if ! ./env/bin/python -c 'import pkg_resources'; then
+            echo "::error::pkg_resources is missing. setuptools dropped it in 82.0.0, pluginmanager imports it, and Jarvis will not start without it. Check the setuptools pin in installer/requirements-lean.txt."
+            exit 1
+          fi
+
+      - name: Assert claude_agent_sdk is importable
+        run: ./env/bin/python -c 'import claude_agent_sdk'
+
+      - name: Assert the claude plugin registers
+        working-directory: jarviscli
+        run: |
+          ../env/bin/python - <<'PY'
+          import sys
+          sys.path.insert(0, ".")
+          from PluginManager import PluginManager
+
+          manager = PluginManager()
+          manager.add_directory("plugins")
+          names = set(manager.get_plugins())
+          count = manager.get_number_plugins_loaded()
+
+          print("plugins loaded: %d" % count)
+
+          missing = [n for n in ("claude", "ai", "ask") if n not in names]
+          if missing:
+              sys.exit("::error::not registered: %s" % ", ".join(missing))
+
+          # A floor rather than an exact number: the set varies by Python
+          # version, because plugins with a broken import are skipped.
+          if count < 180:
+              sys.exit("::error::only %d plugins loaded, expected >= 180" % count)
+
+          print("claude, ai and ask all registered")
+          PY

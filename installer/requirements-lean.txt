@@ -43,6 +43,7 @@ whois
 googletrans
 random-word
 wonderwords
+pyjokes
 pyenchant
 github3.py
 gitpython

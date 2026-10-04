@@ -15,6 +15,24 @@ HISTORY_FILENAME = tempfile.TemporaryFile('w+t')
 
 PROMPT_CHAR = '~>'
 
+# Everyday phrasings that the word-matching in find_action() cannot place,
+# because the plugin's name is two words ("check time") or the key word is
+# not first. Matched against the lower-cased input; first match wins.
+NATURAL_ROUTES = [
+    # "what time is it in tokyo", "time in london", "what's the time in rome"
+    (re.compile(r"^(?:what(?:'s| is)?\s+)?(?:the\s+)?(?:current\s+)?(?:local\s+)?"
+                r"time(?:\s+is\s+it)?(?:\s+now)?\s+(?:in|at)\s+(.+)$"),
+     r"check time in \1"),
+    # "what's the time", "what time is it now"
+    (re.compile(r"^(?:what(?:'s| is)\s+the\s+time|what time is it)(?:\s+now)?$"),
+     "clock"),
+    # "what's the forecast for london", "weather forecast"
+    (re.compile(r"^(?:what(?:'s| is)?\s+)?(?:the\s+)?(?:weather\s+)?forecast\b(.*)$"),
+     r"check forecast \1"),
+    # "do i need an umbrella (in london)"
+    (re.compile(r"^.*\bumbrella\b(.*)$"), r"weather umbrella \1"),
+]
+
 """
     AUTHORS' SCOPE:
         We thought that the source code of Jarvis would
@@ -128,6 +146,10 @@ class Jarvis(CmdInterpreter, object):
 
             # input sanitisation to not mess up urls / numbers
             data = self.regex_dot.sub("", data)
+
+        for pattern, replacement in NATURAL_ROUTES:
+            if pattern.match(data):
+                return pattern.sub(replacement, data).strip()
 
         # Check if Jarvis has a fixed response to this data
         if data in self.fixed_responses:

@@ -1,55 +1,22 @@
+# -*- coding: utf-8 -*-
 from colorama import Fore
-from utilities.GeneralUtilities import print_say
-from . import mapps
-from . import umbrella
 
-def handle_new_location(self, city):
-    print_say("Enter Name of city: ", self)
-    city = input()
-    return city
+from . import geo, umbrella
 
-def handle_location_change(memory, self, new_city, old_location):
-    print_say(
-        f"It appears you are in {new_city}. But you set your location to {old_location}", 
-        self, Fore.RED)
-    print_say(f"Do you want weather for {new_city} instead? (y/n)", self, Fore.RED)
-    if input().lower() in ['y', 'yes']:
-        if ask_set_new_location(self, new_city):
-            memory.update_data('city', new_city)
-            memory.save()
-        return new_city
-    return old_location
-
-def ask_set_new_location(self, city):
-    print_say(f"Would you like to set {city} as your new location? (y/n)", self, Fore.RED)
-    return input().lower() in ['y', 'yes']
-
-def get_weather_for_city(self, city, s):
-    try:
-        if s == 'umbrella':
-            umbrella.main(city)
-        else:
-            return mapps.weather(city)
-        return True
-    except BaseException:
-        print_say("I couldn't locate you", self, Fore.RED)
-        return False
 
 def main(memory, self, s):
-    location = memory.get_data('city')
-    if location is None:
-        city = mapps.get_location()['city']
-        print_say(f"It appears you are in {city} Is this correct? (y/n)", self, Fore.RED)
-        if input().lower() in ['n', 'no']:
-            city = handle_new_location(self, city)
-        
-        if get_weather_for_city(self, city, s):
-            memory.update_data('city', city)
-            memory.save()
-    else:
-        current_city = mapps.get_location()['city']
-        if current_city != location:
-            city = handle_location_change(memory, self, current_city, location)
-        else:
-            city = location
-        get_weather_for_city(self, city, s)
+    """Weather where you are: your saved city if set, else located by IP.
+
+    Set a city with the 'update location' command. Earlier versions asked
+    "It appears you are in X, is this correct? (y/n)" on first use and on every
+    change of network, which is awkward to answer by voice; the IP location is
+    now just used, and said, so a wrong guess is obvious.
+    """
+    city = memory.get_data('city')
+    if 'umbrella' in s:
+        return umbrella.main(city)
+    try:
+        place = geo.find_place(city) if city else geo.here_as_place()
+        print(Fore.BLUE + geo.describe_weather(place) + Fore.RESET)
+    except geo.GeoError as e:
+        print(Fore.RED + str(e) + Fore.RESET)

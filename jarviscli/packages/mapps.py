@@ -4,17 +4,12 @@ import webbrowser
 import requests
 from colorama import Fore
 
-location = 0
+from . import geo
 
 
 def get_location():
-    global location
-    if not location:
-        print("Getting Location ... ")
-        send_url = 'http://api.ipstack.com/check?access_key=8f7b2ef26a8f5e88eb25ae02606284c2&output=json&legacy=1'
-        r = requests.get(send_url)
-        location = json.loads(r.text)
-    return location
+    """This machine's approximate location (see packages/geo.py)."""
+    return geo.locate_me()
 
 
 def directions(to_city, from_city=0):
@@ -30,45 +25,11 @@ def locate_me():
 
 
 def weather(city=None):
-    if not city:
-        city = get_location()['city']
-
-    # Checks country
-    country = get_location()['country_name']
-
-    # If country is US, shows weather in Fahrenheit
-    if country == 'United States':
-        send_url = (
-            "http://api.openweathermap.org/data/2.5/weather?q={0}"
-            "&APPID=ab6ec687d641ced80cc0c935f9dd8ac9&units=imperial".format(
-                city)
-        )
-        unit = ' ºF in '
-
-    # If country is not US, shows weather in Celsius
-    else:
-        send_url = (
-            "http://api.openweathermap.org/data/2.5/weather?q={0}"
-            "&APPID=ab6ec687d641ced80cc0c935f9dd8ac9&units=metric".format(
-                city)
-        )
-        unit = ' ºC in '
-    r = requests.get(send_url)
-    j = json.loads(r.text)
-
-    # check if the city entered is not found
-    if 'message' in j and j['message'] == 'city not found':
-        print(Fore.BLUE + "City Not Found" + Fore.RESET)
+    try:
+        print(Fore.BLUE + geo.describe_weather(geo.resolve(city)) + Fore.RESET)
+    except geo.GeoError as e:
+        print(Fore.RED + str(e) + Fore.RESET)
         return False
-
-    else:
-        temperature = j['main']['temp']
-        description = j['weather'][0]['main']
-        print("{COLOR}It's {TEMP}{UNIT}{CITY} ({DESCR}){COLOR_RESET}"
-              .format(COLOR=Fore.BLUE, COLOR_RESET=Fore.RESET,
-                      TEMP=temperature, UNIT=unit, CITY=city,
-                      DESCR=description))
-
     return True
 
 

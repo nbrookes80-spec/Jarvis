@@ -98,10 +98,10 @@ is safe to re-run, prints every `sudo` command before running it, and sets up th
 ```
 
 It installs a trimmed dependency set (`installer/requirements-lean.txt`) that
-resolves on Python 3.10 through 3.13; pass `--full` for the upstream list. Two
-pins there are load-bearing on a current system — see
+resolves on Python 3.10 through 3.13; pass `--full` for the upstream list. See
 [doc/CLAUDE_AGENT.md](doc/CLAUDE_AGENT.md#changes-to-upstream-dependencies) for
-why `setuptools` is held below 82 and `playsound` is dropped.
+why `playsound` is dropped and how current setuptools (which no longer ships
+`pkg_resources`) is handled.
 
 ### Chatting with Claude
 

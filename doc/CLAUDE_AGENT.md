@@ -114,10 +114,18 @@ personal ones in `~/.claude/skills/`.
    nothing. The audio path actually in use is `gtts` + `pyttsx3`.
 2. **`Image` is removed.** It pulls Django in transitively — a web framework, for
    a terminal tool. `pillow` is depended on directly instead.
+3. **`setuptools` is not pinned.** `pluginmanager` imports `pkg_resources`,
+   which setuptools removed in 82.0.0. Jarvis never loads plugins from entry
+   points — the only thing `pluginmanager` uses it for — so
+   `jarviscli/pkg_resources_compat.py` silences the deprecation warning when
+   the real module exists and registers a minimal `importlib.metadata`-backed
+   stand-in when it does not. It must be imported before `pluginmanager`.
 
-Also dropped, each disabling only its own plugin: `pydoc-markdown` (docs
-tooling), `IMDbPY`, `opencv-python-headless`, `python-nmap`, `yeelight`,
-`pycricbuzz`, `FlightRadarAPI`, `flake8`, `mock`.
+`IMDbPY` is replaced by its successor `cinemagoer`. Still dropped, each
+disabling only its own feature: `pydoc-markdown` (docs tooling), `flake8`,
+`mock`, and `pyaudio` — it compiles against the `portaudio19-dev` apt package,
+and without that it would fail the whole install. Install it by hand for
+microphone input in `music_recognition`.
 
 This is safe because `PluginManager` swallows `ImportError` and skips the
 affected plugin (`jarviscli/PluginManager.py:21-31`). To restore any of them:
@@ -170,7 +178,8 @@ Gated:
 - `installer/requirements-lean.txt` resolves on Python 3.10, 3.11, 3.12 and 3.13
   (`pip install --dry-run`, so a requirement pinned to a URL that stops existing
   fails in seconds — the exact failure mode that broke Python 3.12+)
-- `pkg_resources` still imports, i.e. the `setuptools<82` pin is holding
+- `pluginmanager` imports via `pkg_resources_compat` with no `UserWarning`, on
+  whatever setuptools pip installs
 - `claude_agent_sdk` imports
 - `./bootstrap.sh --yes --no-cli` completes, and `claude`, `ai` and `ask` all
   register afterwards

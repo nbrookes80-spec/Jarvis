@@ -237,38 +237,6 @@ elif confirm "Link ./jarvis into ~/.local/bin so you can run it from anywhere?";
   esac
 fi
 
-# Jarvis is an interactive prompt, so a background service would have no
-# terminal to talk to. Instead, open it in a terminal window at desktop login
-# via the XDG autostart spec (GNOME, Zorin, KDE, XFCE, Cinnamon all honour it).
-AUTOSTART="${XDG_CONFIG_HOME:-$HOME/.config}/autostart/jarvis.desktop"
-TERM_CMD=""
-if command -v gnome-terminal >/dev/null 2>&1; then
-  TERM_CMD="gnome-terminal --title=Jarvis --"
-elif command -v x-terminal-emulator >/dev/null 2>&1; then
-  TERM_CMD="x-terminal-emulator -e"
-fi
-
-if [ -f "$AUTOSTART" ]; then
-  ok "already starts at login ($AUTOSTART)"
-elif [ -z "$TERM_CMD" ]; then
-  info "no terminal emulator found; skipping start-at-login"
-elif confirm "Open Jarvis in a terminal window every time you log in?"; then
-  mkdir -p "$(dirname "$AUTOSTART")"
-  cat > "$AUTOSTART" <<DESKTOP
-[Desktop Entry]
-Type=Application
-Name=Jarvis
-Comment=Open the Jarvis assistant at login
-Exec=$TERM_CMD "$ROOT/jarvis"
-Path=$ROOT
-Icon=utilities-terminal
-Terminal=false
-X-GNOME-Autostart-enabled=true
-X-GNOME-Autostart-Delay=5
-DESKTOP
-  ok "wrote $AUTOSTART (delete it to stop)"
-fi
-
 # --------------------------------------------------------------------- 8. verify
 
 bold "8. Verifying"

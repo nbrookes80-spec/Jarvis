@@ -15,7 +15,7 @@ changes.
 ```bash
 ./bootstrap.sh          # see the main README for flags
 claude login            # authenticate; a Claude subscription works here
-./jarvis
+./Jarvis-AI
 ```
 
 `bootstrap.sh` installs the `claude` CLI because the SDK shells out to it. Without

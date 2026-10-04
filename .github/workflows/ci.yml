@@ -178,19 +178,19 @@ jobs:
           PY
 
       # Loading plugins is not the same as starting the program: the import bug
-      # above broke ./jarvis while leaving PluginManager perfectly happy. This
+      # above broke the launcher while leaving PluginManager perfectly happy. This
       # step runs the launcher the way a user does. 'exit' is a real Jarvis
       # command, so it reaches the prompt and then quits.
-      - name: Assert ./jarvis starts
+      - name: Assert ./Jarvis-AI starts
         run: |
-          if ! printf 'exit\n' | timeout 180 ./jarvis > jarvis-start.log 2>&1; then
+          if ! printf 'exit\n' | timeout 180 ./Jarvis-AI > jarvis-start.log 2>&1; then
             cat jarvis-start.log
-            echo "::error::./jarvis exited non-zero on startup."
+            echo "::error::./Jarvis-AI exited non-zero on startup."
             exit 1
           fi
           cat jarvis-start.log
           grep -q 'plugins loaded' jarvis-start.log || {
-            echo "::error::./jarvis ran but never reported loading plugins."
+            echo "::error::./Jarvis-AI ran but never reported loading plugins."
             exit 1
           }
 

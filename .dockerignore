@@ -7,6 +7,7 @@ env
 .gitignore
 installpyaudio
 jarvis
+Jarvis-AI
 Makefile
 music
 NEW_FUNCTIONALITIES.md

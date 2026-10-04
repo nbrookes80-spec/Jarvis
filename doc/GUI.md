@@ -125,7 +125,7 @@ Python versions ever differ, it falls back to building with pip.
 ## Limitations
 
 - Commands written for a terminal UI (curses games, `clear`, `typing_test`) do
-  not work well in the window; use `./jarvis` for those.
+  not work well in the window; use `./Jarvis-AI` in a terminal for those.
 - `hear` (the old voice_control plugin) also wants the microphone; use the
   window's own voice input instead.
 - There is no tray icon: Zorin's tray needs GTK 3, and one process cannot

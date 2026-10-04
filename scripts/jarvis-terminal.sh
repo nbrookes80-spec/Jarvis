@@ -17,11 +17,11 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 if [ "${1:-}" = "--run" ]; then
   cd "$ROOT" || exit 1
-  if [ ! -x ./jarvis ]; then
-    echo "Jarvis launcher not found at $ROOT/jarvis"
+  if [ ! -x ./Jarvis-AI ]; then
+    echo "Jarvis launcher not found at $ROOT/Jarvis-AI"
     echo "Run ./bootstrap.sh first."
   else
-    ./jarvis
+    ./Jarvis-AI
   fi
   # Without this the window vanishes on exit, taking any error with it.
   echo

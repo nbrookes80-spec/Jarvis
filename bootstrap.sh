@@ -219,21 +219,34 @@ fi
 
 bold "7. Launcher"
 
-cat > "$ROOT/jarvis" <<LAUNCHER
+# The terminal command is "Jarvis-AI". Earlier versions of this script wrote
+# ./jarvis and linked ~/.local/bin/jarvis; remove those if they are ours, so
+# nothing is left pointing at the old name.
+LAUNCHER_NAME="Jarvis-AI"
+cat > "$ROOT/$LAUNCHER_NAME" <<LAUNCHER
 #!/usr/bin/env bash
 source "$VENV/bin/activate"
 exec python "$ROOT/jarviscli" "\$@"
 LAUNCHER
-chmod +x "$ROOT/jarvis"
-ok "wrote ./jarvis"
+chmod +x "$ROOT/$LAUNCHER_NAME"
+ok "wrote ./$LAUNCHER_NAME"
 
 LOCAL_BIN="$HOME/.local/bin"
 if [ -L "$LOCAL_BIN/jarvis" ] && [ "$(readlink -f "$LOCAL_BIN/jarvis")" = "$ROOT/jarvis" ]; then
+  rm -f "$LOCAL_BIN/jarvis"
+  ok "removed the old ~/.local/bin/jarvis link"
+fi
+if [ -f "$ROOT/jarvis" ] && grep -q 'exec python ".*/jarviscli"' "$ROOT/jarvis" 2>/dev/null; then
+  rm -f "$ROOT/jarvis"
+  ok "removed the old ./jarvis launcher"
+fi
+
+if [ -L "$LOCAL_BIN/$LAUNCHER_NAME" ] && [ "$(readlink -f "$LOCAL_BIN/$LAUNCHER_NAME")" = "$ROOT/$LAUNCHER_NAME" ]; then
   ok "already linked into ~/.local/bin"
-elif confirm "Link ./jarvis into ~/.local/bin so you can run it from anywhere?"; then
+elif confirm "Link ./$LAUNCHER_NAME into ~/.local/bin so you can run it from anywhere?"; then
   mkdir -p "$LOCAL_BIN"
-  ln -sf "$ROOT/jarvis" "$LOCAL_BIN/jarvis"
-  ok "linked $LOCAL_BIN/jarvis"
+  ln -sf "$ROOT/$LAUNCHER_NAME" "$LOCAL_BIN/$LAUNCHER_NAME"
+  ok "linked $LOCAL_BIN/$LAUNCHER_NAME"
   case ":$PATH:" in
     *":$LOCAL_BIN:"*) ;;
     *) warn "$LOCAL_BIN is not on your PATH. Add this to ~/.bashrc:"
@@ -275,16 +288,16 @@ if [ -n "$VERIFY" ]; then
     err "claude plugin did NOT register"
   fi
 else
-  warn "could not inspect plugins; start ./jarvis and run 'help' to check"
+  warn "could not inspect plugins; start ./Jarvis-AI and run 'help' to check"
 fi
 
 # Loading plugins is not the same as starting up: an import error in
-# jarviscli/__main__.py crashes ./jarvis while leaving PluginManager happy.
-if printf 'exit\n' | timeout 180 "$ROOT/jarvis" >/dev/null 2>&1; then
-  ok "./jarvis starts and exits cleanly"
+# jarviscli/__main__.py crashes ./Jarvis-AI while leaving PluginManager happy.
+if printf 'exit\n' | timeout 180 "$ROOT/$LAUNCHER_NAME" >/dev/null 2>&1; then
+  ok "./$LAUNCHER_NAME starts and exits cleanly"
 else
-  err "./jarvis failed to start. Run it directly to see the error:"
-  err "  ./jarvis"
+  err "./$LAUNCHER_NAME failed to start. Run it directly to see the error:"
+  err "  ./$LAUNCHER_NAME"
 fi
 
 if [ "$DO_GUI" -eq 1 ]; then
@@ -315,7 +328,7 @@ if [ "$DO_GUI" -eq 0 ]; then
 fi
 info "Next steps:"
 info "  1. Authenticate Claude:   claude login"
-info "  2. Start Jarvis:          ./jarvis       (or just: jarvis)"
+info "  2. Start Jarvis:          ./Jarvis-AI    (or just: Jarvis-AI)"
 info "  3. Inside Jarvis:         claude what is using my disk space?"
 info "                            claude status"
 info "                            claude model sonnet"

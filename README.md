@@ -133,17 +133,19 @@ permission model: [doc/CLAUDE_AGENT.md](doc/CLAUDE_AGENT.md).
 
 ### Running Jarvis
 
-- Run Jarvis from anywhere:
+- Run Jarvis in a terminal from anywhere:
   
    ```bash
-   jarvis
+   Jarvis-AI
    ```
 
   Or from within the project folder:
   
    ```bash
-   ./jarvis
+   ./Jarvis-AI
    ```
+
+  For the desktop window with voice, open **Jarvis** from the app menu or run `./jarvis-gui`.
 
 You can start by typing `help` within the Jarvis command line to check what Jarvis can do for you.
 
@@ -206,7 +208,7 @@ def helloworld(jarvis, s):
 
 Check it out!
 ```
-./jarvis
+./Jarvis-AI
 Jarvis' sound is by default disabled.
 In order to let Jarvis talk out loud type: enable sound
 Type 'help' for a list of available actions.

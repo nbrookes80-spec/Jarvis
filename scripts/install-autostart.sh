@@ -67,8 +67,8 @@ esac
   exit 1
 }
 
-if [ ! -x "$ROOT/jarvis" ]; then
-  warn "$ROOT/jarvis does not exist yet."
+if [ ! -x "$ROOT/Jarvis-AI" ]; then
+  warn "$ROOT/Jarvis-AI does not exist yet."
   warn "Run ./bootstrap.sh first, or the login window will just report that."
 fi
 

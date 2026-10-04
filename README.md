@@ -104,6 +104,10 @@ resolve on Python 3.10 through 3.13; `--full` adds the test and lint tools. See
 why `playsound` is dropped and how current setuptools (which no longer ships
 `pkg_resources`) is handled.
 
+Already have a virtualenv? `pip install -e .` installs Jarvis into it with the
+`Jarvis-AI` and `jarvis-gui` commands (`pip install -e '.[gui]'` adds the voice
+libraries).
+
 ### Desktop window and voice (Zorin OS / GNOME)
 
 A native GTK 4 / libadwaita window you can talk to. Say **"Hey Jarvis"**, press

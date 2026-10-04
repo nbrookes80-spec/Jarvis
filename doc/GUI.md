@@ -62,6 +62,7 @@ starts listening.
 | Keep running when closed | on | Closing the window hides it and keeps listening. Opening Jarvis again from the menu brings it back. |
 | Open at login | follows install | Adds or removes `~/.config/autostart/jarvis.desktop`. |
 | Answer other questions with Claude | on | Anything that is not a Jarvis command ("Who wrote Hamlet?") is answered by Claude in a sentence or two. Needs `claude login`. |
+| Let Claude check which command you meant | on | When a command word appears mid-sentence, Claude confirms you meant that command (about $0.004 per check). See `doc/CLAUDE_AGENT.md`. |
 | Claude model | Haiku 4.5 (cheapest) | Haiku 4.5 ($1/$5 per million tokens), Sonnet 5.5 ($2/$10) or Opus 5.5 ($4/$20). Typical cost per answer on Haiku: under a cent. |
 
 Settings are stored in `~/.config/jarvis/gui.json`. A few extra keys are only

@@ -117,8 +117,22 @@ context. Use `claude ...` when a request needs your files or apps.
 | `JARVIS_AI_FALLBACK` | `1` | `0` turns it off ("I could not identify your command" again) |
 | `JARVIS_AI_MODEL` | `haiku` | `haiku` ($1/$5 per MTok), `sonnet` ($2/$10), `opus` ($4/$20), or a full model id |
 | `JARVIS_AI_BUDGET_USD` | `1.00` | spend cap per session |
+| `JARVIS_AI_ROUTER` | `1` | `0` stops Claude checking mid-sentence command matches (below) |
 
 The desktop window has the same settings in its menu.
+
+**Checking which command was meant.** Jarvis runs any command whose name
+appears anywhere in a sentence, so "I need to open up to my family, any
+advice?" used to run `open`. When the matched command word is not the first
+word of a request of four or more words, Haiku is asked whether that command
+is really wanted; if not, the request is answered as a question instead.
+Commands typed directly ("weather", "binary 42") are never checked, and
+without Claude the match stands. Measured at about $0.004 and 1-2.5 s per
+check.
+
+**When Claude can't answer** (offline, not signed in, spend cap used), the
+free local model answers instead if it is installed (`scripts/install-local-llm.sh`).
+It says so first, because it takes about half a minute on a CPU.
 
 The `claude` plugin itself still defaults to Opus 5.5. Switch it to the
 cheapest model with `claude model haiku`, or set `JARVIS_CLAUDE_MODEL=claude-haiku-4-5`.

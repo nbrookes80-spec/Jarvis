@@ -252,37 +252,24 @@ class Jarvis(CmdInterpreter, object):
 
     def find_action(self, data, actions):
         """Checks if input is a defined action.
+
+        The longest command name found in the sentence wins. On a tie the one
+        said later wins: "I want to hear a joke" means `joke`, not `hear`.
+        (Ties used to follow plugin load order, which varies between runs.)
         :return: returns the action"""
-        output = "None"
-        if not actions:
-            return output
-
-        action_found = False
+        actions = set(actions or ())
         words = data.split()
-        actions = list(actions)
-
-        # return longest matching word
-        # TODO: Implement real and good natural language processing
-        # But for now, this code returns acceptable results
-        actions.sort(key=lambda l: len(l), reverse=True)
-
-        # check word by word if exists an action with the same name
-        for action in actions:
-            words_remaining = data.split()
-            for word in words:
-                words_remaining.remove(word)
-                # For the 'near' keyword, the words before 'near' are also needed
-                if word == "near":
-                    initial_words = words[:words.index('near')]
-                    output = word + " " +\
-                        " ".join(initial_words + ["|"] + words_remaining)
-                elif word == action:  # command name exists
-                    action_found = True
-                    output = word + " " + " ".join(words_remaining)
-                    break
-            if action_found:
-                break
-        return output
+        best = None
+        for index, word in enumerate(words):
+            if word in actions and (best is None or (len(word), index) > (len(best[1]), best[0])):
+                best = (index, word)
+        if best is None:
+            return "None"
+        index, word = best
+        if word == "near":
+            # For 'near', the words before it are needed too
+            return "near " + " ".join(words[:index] + ["|"] + words[index + 1:])
+        return word + " " + " ".join(words[index + 1:])
 
     def executor(self, command):
         """

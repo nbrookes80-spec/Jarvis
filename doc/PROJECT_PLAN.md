@@ -13,12 +13,12 @@ by default, and keep working when parts of the internet don't.
 
 | | |
 |---|---|
-| Code | merged on `master` ([#1](https://github.com/nbrookes80-spec/Jarvis/pull/1), [#2](https://github.com/nbrookes80-spec/Jarvis/pull/2)) |
+| Code | on `master`; plan steps 1 and 3-6 done |
 | CI | 6 of 6 checks pass on `master` |
-| Commands | 244 load, from any folder |
+| Commands | 243 load, from any folder and without a desktop session |
 | Terminal | `Jarvis-AI` |
 | Desktop window | **Jarvis** in the app menu, or `./jarvis-gui`; opens at login |
-| Typical AI answer | about $0.003 and 2-3 s on Claude Haiku 4.5 |
+| Typical AI answer | about $0.003 and 2-3 s on Claude Haiku 4.5; command check about $0.004 |
 
 ### What Jarvis does
 
@@ -28,6 +28,8 @@ by default, and keep working when parts of the internet don't.
 | "Hey Jarvis" | Offline wake word, then Whisper speech-to-text on this machine | generated speech only |
 | Spoken replies | Offline British voice (Piper); long lists summarised aloud | tested |
 | Everyday questions | Anything that isn't a command goes to Claude Haiku 4.5, the cheapest model; follow-ups keep context | tested live |
+| Picking the right command | When a command word appears mid-sentence, Haiku confirms it's really wanted ("I need to open up to my family" no longer runs `open`) | tested live |
+| Offline backup | If Claude can't answer, the local model does (about 30 s) | tested live |
 | `claude ...` | Full Claude agent with local tools; asks before it changes anything | tested live |
 | `local`, `research`, `draft` | Free Qwen3 8B via Ollama; private, no per-use cost, ~30 s per answer on CPU | tested live |
 | Weather, time abroad | Keyless services: "what time is it in Tokyo", "do I need an umbrella" | tested live |
@@ -58,27 +60,40 @@ flowchart LR
 - An actual logout and login with the autostart entry.
 - How the window looks on the Wayland display (checked from off-screen renders).
 
+### Test suite
+
+All failures from dead services and stale tests are fixed (see step 4). The
+only test that cannot run is music recognition: its sample song on Google
+Drive is gone, so it is skipped.
+
 ## Plan
 
-In order. Step 1 is done.
+1. **Merge the pull requests.** Done 5 October 2026.
+2. **Tune voice to the real microphone** *(next, needs you)*. Use the window
+   for a day and note what it mishears, misses, or wakes up to by mistake.
+   With those notes: adjust `wake_threshold`, the silence timing, and the
+   Whisper model size (`~/.config/jarvis/gui.json`, see `doc/GUI.md`).
+3. **Let Claude pick the right command.** Done. Mid-sentence keyword matches
+   are confirmed by Haiku; commands typed directly are never checked. About
+   $0.004 and 1-2.5 s per check; turn off with the window's menu or
+   `JARVIS_AI_ROUTER=0`.
+4. **Repair or retire commands that call dead services.** Done.
+   Repaired: `wiki` (direct Wikipedia API), `name_day` (v2 API, no embedded
+   key), `hackernews` (new page markup), `screencapture` (loads without a
+   display). Removed: `twitter_trends` (service gone) and `wiki_summary`
+   (duplicate of `wiki summary`). Fixed the "Jarvis, ..." routing bug and 13
+   stale tests. `movie` still needs IMDb's datasets imported to work.
+5. **Light packaging.** Done. `pyproject.toml`; `./env/bin/pip install -e .`
+   adds `Jarvis-AI` and `jarvis-gui` to the virtualenv, with dependencies
+   read from the same files the installers use. The 240 original commands
+   stay where they are, so upstream fixes still merge cleanly.
+6. **Role for the local model.** Done. Qwen3 8B handles `local`, `research`
+   and `draft`, and answers everyday questions when Claude can't.
 
-1. **Merge both pull requests.** Done 5 October 2026.
-2. **Tune voice to the real microphone** *(recommended next)*. Use it for a day,
-   note what it mishears or wakes up to, then adjust wake sensitivity, silence
-   timing and Whisper model size. Effort: an hour once there are notes.
-3. **Let Claude pick the right command** *(recommended)*. Jarvis matches single
-   words, so "how far is the Moon?" can land on the moon-phase command. A small
-   Haiku call would choose the command or answer directly. About $0.001 per
-   request; half a day of work. The biggest remaining quality gain.
-4. **Retire the commands that call dead services.** About 40 tests fail because
-   the services those commands use no longer exist. Repair the useful ones with
-   working sources and remove the rest. `movie` is one: its library now needs
-   IMDb's datasets downloaded locally. One to two days.
-5. **Light packaging.** Add `pyproject.toml` and an installable `Jarvis-AI`
-   entry point. Leave the original 240 commands where they are, so fixes from
-   the upstream project still merge cleanly. Half a day.
-6. **Choose a role for the local model.** Keep Qwen3 8B for drafts, research
-   and offline use, or switch to the faster `qwen3:4b`.
+### After that
+
+- Replace `movie`'s data source with a keyless one, or remove it.
+- Decide the open questions below.
 
 ## Open decisions
 
@@ -95,7 +110,8 @@ In order. Step 1 is done.
 | `bootstrap.sh` | Installer for Debian / Ubuntu / Zorin; writes `./Jarvis-AI` |
 | `installer/` | Cross-platform installer (`python3 installer`) and the requirement lists: `requirements-lean.txt` (runtime), `requirements-gui.txt` (window and voice), `requirements-dev.txt` (tests), `requirements.txt` (lean + dev) |
 | `scripts/` | `install-gui.sh`, `install-local-llm.sh`, `install-autostart.sh`, `jarvis-terminal.sh` |
-| `jarviscli/` | The assistant: `Jarvis.py` (routing), `plugins/` (commands), `packages/` (helpers, incl. `geo.py`, `ai_brain.py`, `local_llm.py`), `gui/` (window, voice, engine), `tests/` |
+| `jarviscli/` | The assistant: `Jarvis.py` (routing), `plugins/` (commands), `packages/` (helpers, incl. `geo.py`, `ai_brain.py`, `local_llm.py`, `wiki_api.py`), `gui/` (window, voice, engine), `launcher.py` (pip entry points), `tests/` |
+| `pyproject.toml` | Packaging for `pip install -e .` |
 | `custom/` | Your own plugins; loaded at startup, ignored by git |
 | `doc/` | `GUI.md`, `CLAUDE_AGENT.md`, `PLUGINS.md`, `API.md`, `TESTING.md`, this plan |
 | `.github/workflows/ci.yml` | CI: dependency resolution on Python 3.10-3.13, lint, install, startup and window checks |

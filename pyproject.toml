@@ -1,0 +1,37 @@
+# Packaging metadata. Install into an existing virtualenv in editable mode:
+#
+#   ./env/bin/pip install -e .            # adds env/bin/Jarvis-AI and env/bin/jarvis-gui
+#   ./env/bin/pip install -e '.[gui]'     # plus the desktop window's voice libraries
+#
+# Editable mode is the supported one: plugins, data files and the custom/
+# folder are found relative to the source tree. bootstrap.sh remains the
+# installer for Zorin / Ubuntu; it also writes ./Jarvis-AI.
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jarvis-ai"
+version = "2026.10.0"
+description = "Jarvis-AI: a personal assistant for the Linux desktop, with voice and Claude"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dynamic = ["dependencies", "optional-dependencies"]
+
+[project.urls]
+Repository = "https://github.com/nbrookes80-spec/Jarvis"
+
+[project.scripts]
+Jarvis-AI = "jarviscli.launcher:main"
+jarvis-gui = "jarviscli.launcher:gui"
+
+[tool.setuptools]
+packages = ["jarviscli"]
+
+# One list of each kind of dependency, shared with the installers.
+[tool.setuptools.dynamic]
+dependencies = { file = ["installer/requirements-lean.txt"] }
+optional-dependencies.gui = { file = ["installer/requirements-gui.txt"] }
+optional-dependencies.dev = { file = ["installer/requirements-dev.txt"] }

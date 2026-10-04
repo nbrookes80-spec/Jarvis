@@ -24,6 +24,11 @@ except ImportError:
 DEFAULT_MODEL = os.environ.get("JARVIS_CLAUDE_MODEL", "claude-opus-5-5")
 DEFAULT_EFFORT = os.environ.get("JARVIS_CLAUDE_EFFORT", "high")
 DEFAULT_BUDGET_USD = float(os.environ.get("JARVIS_CLAUDE_BUDGET_USD", "5.00"))
+# "project": only connectors in this repo's .mcp.json. "all": also every
+# connector on the user's Claude account and Claude Code plugins. Measured on a
+# real account with ~60 of them: the first answer took over a minute while
+# unreachable ones timed out (30-60 s each), and each turn cost ~10x more.
+CONNECTORS = os.environ.get("JARVIS_CLAUDE_CONNECTORS", "project").strip().lower()
 
 MODEL_ALIASES = {
     "opus": "claude-opus-5-5",
@@ -150,7 +155,6 @@ def _make_permission_handler(jarvis):
 def _build_options(jarvis, project_dir):
     kwargs = dict(
         model=_session.model,
-        effort=_session.effort,
         cwd=str(project_dir),
         can_use_tool=_make_permission_handler(jarvis),
         max_budget_usd=DEFAULT_BUDGET_USD,
@@ -167,9 +171,17 @@ def _build_options(jarvis, project_dir):
         },
     )
 
+    # Haiku 4.5 does not support the effort parameter.
+    if not _session.model.startswith("claude-haiku"):
+        kwargs["effort"] = _session.effort
+
     mcp_config = project_dir / ".mcp.json"
     if mcp_config.is_file():
         kwargs["mcp_servers"] = str(mcp_config)
+    if CONNECTORS != "all":
+        kwargs["strict_mcp_config"] = True      # nothing beyond .mcp.json
+        kwargs["setting_sources"] = []          # nor connectors from plugins/settings
+        kwargs["plugins"] = []
 
     return ClaudeAgentOptions(**kwargs)
 
@@ -219,10 +231,32 @@ def _handle_model(jarvis, argument):
     jarvis.say("Model set to {}.".format(requested), Fore.GREEN)
 
 
+def _summarise_mcp(status):
+    """'3 connected (gmail, drive, ...), 12 need sign-in, 2 failed' instead of raw JSON."""
+    servers = status.get("mcpServers", []) if isinstance(status, dict) else []
+    if not servers:
+        return "none"
+    groups = {}
+    for server in servers:
+        name = server.get("name", "?").split(":")[-1]
+        groups.setdefault(server.get("status", "unknown"), []).append(name)
+    labels = {"connected": "connected", "needs-auth": "need sign-in", "pending": "starting",
+              "failed": "failed"}
+    parts = []
+    for key in ("connected", "needs-auth", "pending", "failed"):
+        names = groups.pop(key, [])
+        if names:
+            shown = ", ".join(names[:4]) + (", ..." if len(names) > 4 else "")
+            parts.append("{} {} ({})".format(len(names), labels[key], shown))
+    parts += ["{} {}".format(len(v), k) for k, v in groups.items()]
+    return "; ".join(parts)
+
+
 def _handle_status(jarvis):
     jarvis.say("model:   {}".format(_session.model), Fore.GREEN)
     jarvis.say("effort:  {}".format(_session.effort), Fore.GREEN)
     jarvis.say("budget:  ${:.2f} per session".format(DEFAULT_BUDGET_USD), Fore.GREEN)
+    jarvis.say("connectors: {} (JARVIS_CLAUDE_CONNECTORS=project|all)".format(CONNECTORS), Fore.GREEN)
     jarvis.say("spent:   ${:.4f}".format(_session.spend), Fore.GREEN)
     jarvis.say("session: {}".format("live" if _session.client else "not started"), Fore.GREEN)
     if _session.always_allow:
@@ -230,7 +264,7 @@ def _handle_status(jarvis):
     if _session.client is not None:
         try:
             status = _session.loop.submit(_session.client.get_mcp_status())
-            jarvis.say("mcp:     {}".format(status), Fore.GREEN)
+            jarvis.say("mcp:     {}".format(_summarise_mcp(status)), Fore.GREEN)
         except Exception as error:
             jarvis.say("mcp:     unavailable ({})".format(error), Fore.YELLOW)
 

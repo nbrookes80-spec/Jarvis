@@ -96,6 +96,33 @@ The plugin passes that file to the SDK on the next `claude` command. `stdio`,
 
 Every connector widens what Claude can reach. Add them deliberately.
 
+**Your Claude account's connectors are not loaded by default.** Only servers in
+this repo's `.mcp.json` are. Set `JARVIS_CLAUDE_CONNECTORS=all` to also load
+every connector on your Claude account and in your Claude Code plugins. On an
+account with ~60 of them, that made the first answer take over a minute (each
+unreachable connector times out after 30-60 s) and every turn cost about ten
+times more, which is why it is opt-in.
+
+## Quick answers (no `claude` prefix)
+
+Anything Jarvis has no command for ("Who wrote Hamlet?", "Hey Jarvis, how are
+you?") goes to Claude through a separate, lean path
+(`jarviscli/packages/ai_brain.py`): **Claude Haiku 4.5**, Anthropic's cheapest
+model, no connectors or local tools, only web search, answers in one to three
+sentences. Measured at $0.004-0.007 and 2-3 s per answer, and follow-ups keep
+context. Use `claude ...` when a request needs your files or apps.
+
+| Variable | Default | |
+|---|---|---|
+| `JARVIS_AI_FALLBACK` | `1` | `0` turns it off ("I could not identify your command" again) |
+| `JARVIS_AI_MODEL` | `haiku` | `haiku` ($1/$5 per MTok), `sonnet` ($2/$10), `opus` ($4/$20), or a full model id |
+| `JARVIS_AI_BUDGET_USD` | `1.00` | spend cap per session |
+
+The desktop window has the same settings in its menu.
+
+The `claude` plugin itself still defaults to Opus 5.5. Switch it to the
+cheapest model with `claude model haiku`, or set `JARVIS_CLAUDE_MODEL=claude-haiku-4-5`.
+
 ## Skills
 
 The plugin runs with `skills="all"`, so Agent Skills available to your `claude`

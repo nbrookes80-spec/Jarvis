@@ -8,6 +8,7 @@ import sys
 import tempfile
 from utilities.GeneralUtilities import print_say
 from CmdInterpreter import CmdInterpreter
+from packages.ai_brain import brain
 
 # register hist path
 HISTORY_FILENAME = tempfile.TemporaryFile('w+t')
@@ -96,13 +97,42 @@ class Jarvis(CmdInterpreter, object):
         return dirs_abs
 
     def default(self, data):
-        """Jarvis let's you know if an error has occurred."""
+        """No command matched: hand the original wording to the AI fallback."""
+        question = getattr(self, '_raw_line', '') or data
+        if brain.enabled and brain.available and question.strip() and question != 'None':
+            try:
+                self._api.say(brain.ask(question), Fore.CYAN)
+                return
+            except RuntimeError as e:
+                self._api.say(str(e), Fore.MAGENTA)
+                return
         print_say("I could not identify your command...", self, Fore.MAGENTA)
 
     def precmd(self, line):
         """Hook that executes before every command."""
         words = line.split()
         HISTORY_FILENAME.write(line + '\n')
+        # Kept verbatim for the AI fallback; parse_input() lower-cases and
+        # strips punctuation, which is right for matching commands but mangles
+        # a question ("Who wrote Hamlet?" -> "who wrote hamlet").
+        self._raw_line = line.strip()
+
+        # People address it by name: "Hey Jarvis, how are you?". Drop that,
+        # unless it is a real command of the 'jarvis' plugin ("jarvis tour").
+        named = re.match(r"^(?:(?:hey|hi|hello|ok|okay)\s+)?jarvis\b[\s,.!?]*(.*)$",
+                         line.strip(), re.IGNORECASE)
+        if named and not named.group(1):
+            return '__ai__'     # just "hey jarvis": no command, a greeting for the AI
+        if named and named.group(1):
+            rest = named.group(1)
+            sub = self._plugin_manager.get_plugins().get('jarvis')
+            subs = set(sub.get_plugins().keys()) if sub is not None else set()
+            if not subs or rest.split()[0].lower() not in subs:
+                return self.precmd(rest)
+
+        # Questions for Claude go through untouched, for the same reason.
+        if words and words[0].lower() in ('claude', 'ai', 'ask'):
+            return words[0].lower() + line.strip()[len(words[0]):]
 
         # append calculate keyword to front of leading char digit (or '-') in line
         if words and (words[0].isdigit() or line[0] == "-"):

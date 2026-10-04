@@ -9,6 +9,7 @@ import unittest
 
 from gui import voice
 from gui.engine import JarvisEngine, strip_ansi
+from packages.ai_brain import brain, resolve_model
 
 
 class VoiceHelpersTest(unittest.TestCase):
@@ -37,11 +38,23 @@ class VoiceHelpersTest(unittest.TestCase):
         self.assertEqual(strip_ansi('\x1b[35mhello\x1b[39m'), 'hello')
 
 
+class AIModelTest(unittest.TestCase):
+
+    def test_cheapest_model_is_default_alias(self):
+        self.assertEqual(resolve_model('haiku'), 'claude-haiku-4-5')
+        self.assertEqual(resolve_model('Sonnet'), 'claude-sonnet-5-5')
+        self.assertEqual(resolve_model('opus'), 'claude-opus-5-5')
+        self.assertEqual(resolve_model('claude-opus-5'), 'claude-opus-5')
+
+
 class EngineTest(unittest.TestCase):
     """Loads the real plugin set once (~10-20 s), then runs commands."""
 
     @classmethod
     def setUpClass(cls):
+        # Deterministic and offline: no Claude calls from the test suite.
+        cls._ai_was = brain.enabled
+        brain.enabled = False
         cls.output = []
         cls.prompts = []
         cls.busy = []
@@ -57,6 +70,7 @@ class EngineTest(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.engine.stop()
+        brain.enabled = cls._ai_was
 
     def setUp(self):
         self.assertFalse(self.error, self.error and self.error[0])
@@ -65,6 +79,7 @@ class EngineTest(unittest.TestCase):
         del self.prompts[:]
 
     def run_command(self, command, answers=(), timeout=30):
+        del self.output[:]
         start = len(self.busy)
         answers = list(answers)
         self.engine.submit(command)
@@ -82,6 +97,18 @@ class EngineTest(unittest.TestCase):
 
     def test_unknown_command(self):
         self.assertIn('could not identify', self.run_command('qwertyuiop'))
+
+    def test_addressing_jarvis_by_name(self):
+        self.assertEqual(self.run_command('Hey Jarvis, binary 10').strip(), '1010')
+        self.assertEqual(self.run_command('Jarvis binary 10').strip(), '1010')
+
+    def test_world_time_phrasing_routed(self):
+        line = self.engine.jarvis.precmd('What time is it in Tokyo?')
+        self.assertEqual(line, 'check time in tokyo')
+
+    def test_questions_for_claude_keep_their_wording(self):
+        line = self.engine.jarvis.precmd('claude Who wrote "Hamlet", and when?')
+        self.assertEqual(line, 'claude Who wrote "Hamlet", and when?')
 
     def test_plugin_question_routed_back(self):
         # bmi asks for a unit system, then height and weight.

@@ -61,6 +61,8 @@ starts listening.
 | Listen for "Hey Jarvis" | on | Keep the wake word active. Off = microphone button only. |
 | Keep running when closed | on | Closing the window hides it and keeps listening. Opening Jarvis again from the menu brings it back. |
 | Open at login | follows install | Adds or removes `~/.config/autostart/jarvis.desktop`. |
+| Answer other questions with Claude | on | Anything that is not a Jarvis command ("Who wrote Hamlet?") is answered by Claude in a sentence or two. Needs `claude login`. |
+| Claude model | Haiku 4.5 (cheapest) | Haiku 4.5 ($1/$5 per million tokens), Sonnet 5.5 ($2/$10) or Opus 5.5 ($4/$20). Typical cost per answer on Haiku: under a cent. |
 
 Settings are stored in `~/.config/jarvis/gui.json`. A few extra keys are only
 settable there:
@@ -80,6 +82,11 @@ settable there:
   `./env/bin/python -m piper.download_voices --download-dir ~/.local/share/jarvis/voices <name>`
 - `wake_threshold`: raise it (e.g. `0.7`) if Jarvis wakes up by mistake;
   lower it if it misses you
+
+You can address it by name: "Jarvis, what time is it in London?" and "Hey
+Jarvis, how are you?" both work, typed or spoken. Everyday phrasings for time
+and weather in other places are understood: "what time is it in Tokyo",
+"what's the weather like in Rome", "do I need an umbrella".
 
 ## How it works
 

@@ -57,8 +57,11 @@ class _StdinBridge(io.TextIOBase):
 class _StdoutBridge(io.TextIOBase):
     """sys.stdout replacement: forwards worker-thread writes to the engine.
 
-    Writes from any other thread (GTK, library warnings) go to the real stream,
-    so stray prints from the UI never show up as Jarvis's reply.
+    While a command runs, writes from any thread except the UI thread are
+    Jarvis's output: some plugins print from their own threads (the claude
+    plugin answers from an asyncio loop thread). Otherwise, and always for the
+    UI thread, writes go to the real stream, so stray prints from the window
+    never show up as Jarvis's reply.
     """
 
     def __init__(self, engine, real):
@@ -76,8 +79,11 @@ class _StdoutBridge(io.TextIOBase):
         return 'utf-8'
 
     def write(self, text):
-        if threading.current_thread() is self._engine._thread:
-            self._engine._emit(text)
+        current = threading.current_thread()
+        engine = self._engine
+        if current is engine._thread or (
+                engine._busy and current is not engine._ui_thread):
+            engine._emit(text)
         elif self._real is not None:
             self._real.write(text)
         return len(text)
@@ -135,6 +141,8 @@ class JarvisEngine(object):
         self._waiting = None        # the stdin queue a plugin is blocked on
         self._pending = ''          # partial line not yet ending in newline
         self._loading = True        # plugin-load noise is not a reply
+        self._busy = False
+        self._ui_thread = None
         self._lock = threading.Lock()
         self._stdin = _StdinBridge(self)
 
@@ -143,6 +151,7 @@ class JarvisEngine(object):
     def start(self):
         self._thread = threading.Thread(
             target=self._run, name='jarvis-engine', daemon=True)
+        self._ui_thread = threading.current_thread()
         self._saved_streams = (sys.stdout, sys.stdin)
         sys.stdout = _StdoutBridge(self, sys.stdout)
         sys.stdin = self._stdin
@@ -255,6 +264,7 @@ class JarvisEngine(object):
             command = self._commands.get()
             if command is None:
                 break
+            self._busy = True
             self._call(self.on_busy, True)
             try:
                 self.jarvis.get_api().eval(command)
@@ -266,6 +276,7 @@ class JarvisEngine(object):
                 tail = self._flush_pending()
                 if tail.strip():
                     self._call(self.on_output, tail + '\n')
+                self._busy = False
                 self._call(self.on_busy, False)
 
     def stop(self):

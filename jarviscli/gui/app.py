@@ -10,6 +10,7 @@ gi.require_version('Adw', '1')
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from gui import voice  # noqa: E402
+from packages.ai_brain import brain  # noqa: E402
 from gui.engine import EXIT_WORDS, JarvisEngine  # noqa: E402
 
 APP_ID = 'io.github.nbrookes80_spec.Jarvis'
@@ -59,6 +60,8 @@ class Settings(dict):
         'whisper_model': voice.DEFAULT_WHISPER,
         'voice': voice.DEFAULT_VOICE,
         'wake_threshold': 0.5,
+        'ai_fallback': True,
+        'ai_model': 'haiku',
     }
 
     def __init__(self):
@@ -141,6 +144,14 @@ class JarvisWindow(Adw.ApplicationWindow):
         voice_section.append('Speak replies', 'app.speak')
         voice_section.append('Listen for “Hey Jarvis”', 'app.wake')
         menu.append_section(None, voice_section)
+        ai_section = Gio.Menu()
+        ai_section.append('Answer other questions with Claude', 'app.ai')
+        models = Gio.Menu()
+        for key, label in (('haiku', 'Haiku 4.5 (cheapest)'), ('sonnet', 'Sonnet 5.5'),
+                           ('opus', 'Opus 5.5 (most capable)')):
+            models.append(label, 'app.ai-model::' + key)
+        ai_section.append_submenu('Claude model', models)
+        menu.append_section(None, ai_section)
         app_section = Gio.Menu()
         app_section.append('Keep running when closed', 'app.background')
         app_section.append('Open at login', 'app.autostart')
@@ -384,6 +395,17 @@ class JarvisApp(Adw.Application):
                 name, None, GLib.Variant.new_boolean(bool(self.settings[key])))
             action.connect('change-state', self._on_toggle, key)
             self.add_action(action)
+        brain.enabled = bool(self.settings['ai_fallback'])
+        brain.set_model(self.settings['ai_model'])
+        action = Gio.SimpleAction.new_stateful(
+            'ai', None, GLib.Variant.new_boolean(brain.enabled))
+        action.connect('change-state', self._on_ai_toggle)
+        self.add_action(action)
+        action = Gio.SimpleAction.new_stateful(
+            'ai-model', GLib.VariantType.new('s'),
+            GLib.Variant.new_string(self.settings['ai_model']))
+        action.connect('change-state', self._on_ai_model)
+        self.add_action(action)
         action = Gio.SimpleAction.new_stateful(
             'autostart', None, GLib.Variant.new_boolean(autostart_enabled()))
         action.connect('change-state', self._on_autostart)
@@ -457,6 +479,20 @@ class JarvisApp(Adw.Application):
         if key == 'speak_replies' and not self.settings[key]:
             self.speaker.stop()
 
+    def _on_ai_toggle(self, action, value):
+        action.set_state(value)
+        brain.enabled = self.settings['ai_fallback'] = value.get_boolean()
+        self.settings.save()
+        if brain.enabled and brain.unavailable_reason():
+            self._show_banner('Claude answers unavailable: %s.' % brain.unavailable_reason())
+
+    def _on_ai_model(self, action, value):
+        action.set_state(value)
+        self.settings['ai_model'] = value.get_string()
+        self.settings.save()
+        brain.set_model(self.settings['ai_model'])
+        self.window.set_status('Claude model: %s' % value.get_string().title())
+
     def _on_autostart(self, action, value):
         try:
             set_autostart(value.get_boolean())
@@ -471,9 +507,10 @@ class JarvisApp(Adw.Application):
             website='https://github.com/nbrookes80-spec/Jarvis',
             license_type=Gtk.License.MIT_X11,
             comments='%d commands. Speech runs offline: openWakeWord, '
-                     'faster-whisper and %s.' % (
+                     'faster-whisper and %s.\n\nOther questions: %s.' % (
                          self.engine.plugin_count if self.engine else 0,
-                         self.speaker.engine_name or 'no voice'))
+                         self.speaker.engine_name or 'no voice',
+                         ('Claude ' + brain.describe()) if brain.enabled else 'off'))
         about.present()
 
     def _show_banner(self, text):

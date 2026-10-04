@@ -109,6 +109,9 @@ class EngineTest(unittest.TestCase):
     def test_questions_for_claude_keep_their_wording(self):
         line = self.engine.jarvis.precmd('claude Who wrote "Hamlet", and when?')
         self.assertEqual(line, 'claude Who wrote "Hamlet", and when?')
+        # A word inside the question must not pick another command ("weather").
+        line = self.engine.jarvis.precmd('local What is the weather and climate of Sydney?')
+        self.assertEqual(line, 'local What is the weather and climate of Sydney?')
 
     def test_plugin_question_routed_back(self):
         # bmi asks for a unit system, then height and weight.

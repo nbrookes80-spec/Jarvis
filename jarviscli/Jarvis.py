@@ -130,8 +130,9 @@ class Jarvis(CmdInterpreter, object):
             if not subs or rest.split()[0].lower() not in subs:
                 return self.precmd(rest)
 
-        # Questions for Claude go through untouched, for the same reason.
-        if words and words[0].lower() in ('claude', 'ai', 'ask'):
+        # Questions for Claude or the local model go through untouched, for the
+        # same reason, and so a word inside them cannot select another command.
+        if words and words[0].lower() in ('claude', 'ai', 'ask', 'local', 'research', 'draft'):
             return words[0].lower() + line.strip()[len(words[0]):]
 
         # append calculate keyword to front of leading char digit (or '-') in line

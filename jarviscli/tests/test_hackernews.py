@@ -1,4 +1,7 @@
 import unittest
+from unittest import mock
+
+import plugins.hackernews as hackernews_module
 from plugins.hackernews import HackerNews, HackerNewsInvalidInputException
 from tests import PluginTest
 
@@ -11,11 +14,18 @@ class HackerNewsTest(PluginTest):
         self.hackernews = self.load_plugin(HackerNews)
 
     def test_list_titles(self):
-
-        titles = self.hackernews._list_titles(self.jarvis_api)
+        # Offline: a trimmed copy of the front page's current markup.
+        page = "".join(
+            '<tr class="athing"><td class="title"><span class="titleline">'
+            '<a href="https://example.com/{0}">Story {0}</a></span></td></tr>'.format(i)
+            for i in range(1, 31))
+        response = mock.Mock(content=page.encode(), raise_for_status=lambda: None)
+        with mock.patch.object(hackernews_module.requests, "get", return_value=response):
+            titles = self.hackernews._list_titles(self.jarvis_api)
 
         self.assertIsInstance(titles, list)
         self.assertEqual(len(titles), 30)
+        self.assertEqual(titles[0], ("Story 1", "https://example.com/1"))
 
     def test_get_selected_titles(self):
 

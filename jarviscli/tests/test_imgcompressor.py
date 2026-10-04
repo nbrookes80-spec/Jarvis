@@ -2,9 +2,10 @@ import unittest
 from tests import PluginTest
 from plugins.imgcompressor import ImageCompressor
 
-import requests
 import os
 import shutil
+
+from PIL import Image
 
 """Instructions to run this test.
 
@@ -38,25 +39,15 @@ class ImgCompressorTest(PluginTest):
         of the ImgCompressor plugin
         """
 
+        # A folder left behind by an interrupted run must not fail setUp.
+        shutil.rmtree(self.image_folder, ignore_errors=True)
         os.mkdir(self.image_folder)
 
-        image1 = requests.get('http://i.imgur.com/xZ8x9ES.jpg', stream=True)
-        if image1.status_code == 200:
-            with open(os.path.join(self.image_folder, self.image1), 'wb') as f:
-                shutil.copyfileobj(image1.raw, f)
-            print('Image sucessfully Downloaded: ', self.image1)
-        else:
-            print('Image Couldn\'t be retrieved')
-            self.fail('Image Couldn\'t be retrieved')
-
-        image2 = requests.get('https://i.imgur.com/UYrdDFI.jpg', stream=True)
-        if image2.status_code == 200:
-            with open(os.path.join(self.image_folder, self.image2), 'wb') as f:
-                shutil.copyfileobj(image2.raw, f)
-            print('Image sucessfully Downloaded: ', self.image2)
-        else:
-            print('Image Couldn\'t be retrieved')
-            self.fail('Image Couldn\'t be retrieved')
+        # Generated locally: the Imgur images this test used to download made
+        # it fail whenever the network or Imgur did.
+        for name, size in ((self.image1, (1200, 800)), (self.image2, (800, 1200))):
+            Image.effect_noise(size, 64).convert('RGB').save(
+                os.path.join(self.image_folder, name), quality=95)
 
     def test_compress_single_image(self):
         """Test workflow to compress a single image."""

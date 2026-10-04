@@ -23,6 +23,8 @@ import time
 
 import requests
 
+from packages import wiki_api
+
 OLLAMA_URL = os.environ.get('JARVIS_OLLAMA_URL', 'http://127.0.0.1:11434')
 DEFAULT_MODEL = os.environ.get('JARVIS_LOCAL_MODEL', 'qwen3:8b')
 DOCS_DIR = os.path.expanduser(os.environ.get('JARVIS_DOCS_DIR', '~/Documents/Jarvis'))
@@ -148,35 +150,20 @@ def strip_think(text):
 
 # ------------------------------------------------------------------ research
 
-WIKI_API = 'https://en.wikipedia.org/w/api.php'
-# Wikipedia rejects anonymous default user agents (the `wikipedia` package
-# gets an HTML error page back, hence a JSON decode error); identify ourselves.
-WIKI_HEADERS = {'User-Agent': 'Jarvis-assistant/1.0 (https://github.com/nbrookes80-spec/Jarvis)'}
-
-
 def wikipedia_sources(topic, limit=3, chars=2500):
     """[(title, url, extract)] for the top Wikipedia matches; [] if offline."""
     try:
-        hits = requests.get(WIKI_API, headers=WIKI_HEADERS, timeout=15, params={
-            'action': 'query', 'list': 'search', 'srsearch': topic, 'srlimit': limit,
-            'format': 'json'}).json()['query']['search']
-        if not hits:
-            return []
-    except (requests.RequestException, ValueError, KeyError):
+        titles = wiki_api.search(topic, limit)
+    except wiki_api.WikiError:
         return []
     sources = []
-    for h in hits:
-        # Full-text extracts come back one page per request (exlimit is 1).
+    for title in titles:
         try:
-            pages = requests.get(WIKI_API, headers=WIKI_HEADERS, timeout=15, params={
-                'action': 'query', 'prop': 'extracts|info', 'explaintext': 1,
-                'inprop': 'url', 'titles': h['title'], 'redirects': 1,
-                'format': 'json'}).json()['query']['pages']
-        except (requests.RequestException, ValueError, KeyError):
+            page = wiki_api.page(title)
+        except (KeyError, wiki_api.Disambiguation, wiki_api.WikiError):
             continue
-        for page in pages.values():
-            if page.get('extract'):
-                sources.append((page['title'], page.get('fullurl', ''), page['extract'][:chars]))
+        if page['text']:
+            sources.append((page['title'], page['url'], page['text'][:chars]))
     return sources
 
 

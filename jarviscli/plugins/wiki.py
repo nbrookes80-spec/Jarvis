@@ -1,73 +1,64 @@
-import wikipedia
 from plugin import plugin, complete, require
+
+from packages import wiki_api
 
 
 @require(network=True)
-@complete("search", "sumary", "content")
+@complete("search", "summary", "content")
 @plugin('wiki')
 class Wiki():
     """
-    Jarvis has now wiki feature
-    enter wiki search for searching related topics
-    enter wiki summary for getting summary of the topic
-    wiki content for full page article of topic
+    Look things up on Wikipedia.
+    wiki search <subject>    related pages
+    wiki summary <subject>   the opening paragraph
+    wiki content <subject>   the full article text
+    wiki <subject>           same as summary
     """
 
     def __call__(self, jarvis, s):
         k = s.split(' ', 1)
-        if len(k) == 1:
+        if not s.strip():
             jarvis.say(
                 "Do you mean:\n"
                 "1. wiki search <subject>\n"
                 "2. wiki summary <subject>\n"
                 "3. wiki content <subject>")
+            return
+        if k[0] in ("search", "summary", "content") and len(k) > 1:
+            action, subject = k[0], k[1]
         else:
-            data = None
-            if k[0] == "search":
-                data = self.search(" ".join(k[1:]))
-            elif k[0] == "summary":
-                data = self.summary(" ".join(k[1:]))
-            elif k[0] == "content":
-                data = self.content(" ".join(k[1:]))
-            else:
-                jarvis.say("I don't know what you mean")
-                return
+            action, subject = "summary", s     # "wiki albert einstein"
 
-            if isinstance(data, list):
-                print("\nDid you mean one of these pages?\n")
-                for d in range(len(data)):
-                    print(str(d + 1) + ": " + data[d])
-            else:
-                print("\n" + data)
-
-    def search(self, query, count=10, suggestion=False):
-        """Do a Wikipedia search for a query, returns a list of 10 related items."""
-        items = wikipedia.search(query, count, suggestion)
-        if isinstance(items, list) and items:
-            return items
-        return "No articles with that name, try another item."
-
-    def summary(self, query, sentences=0, chars=0):
-        """Returns a plain text summary from the query's page."""
         try:
-            return wikipedia.summary(query, sentences, chars)
-        except wikipedia.exceptions.PageError:
-            return "No page matches, try another item."
-        except wikipedia.exceptions.DisambiguationError as error:
-            return error.options[:5]
+            data = getattr(self, action)(subject)
+        except wiki_api.WikiError as error:
+            jarvis.say(str(error))
+            return
 
-    def content(
-            self,
-            title=None,
-            pageid=None,
-            auto_suggest=True,
-            redirect=True,
-            preload=False):
-        """Returns plain text content of query's page, excluding images, tables and other data."""
+        if isinstance(data, list):
+            jarvis.say("Did you mean one of these pages?")
+            for number, title in enumerate(data, 1):
+                jarvis.say("{}: {}".format(number, title))
+        else:
+            jarvis.say(data)
+
+    def search(self, query, count=10):
+        """Titles of up to `count` related pages."""
+        items = wiki_api.search(query, count)
+        return items or "No articles with that name, try another item."
+
+    def summary(self, query, sentences=0):
+        """Plain-text opening section of the query's page."""
+        return self._page(query, intro_only=True, sentences=sentences or None)
+
+    def content(self, title):
+        """Plain-text content of the page, without images and tables."""
+        return self._page(title)
+
+    def _page(self, title, **kwargs):
         try:
-            page = wikipedia.page(title)
-            return page.content
-        except wikipedia.exceptions.PageError:
+            return wiki_api.page(title, **kwargs)['text']
+        except KeyError:
             return "No page matches, try another item."
-        except wikipedia.exceptions.DisambiguationError as error:
+        except wiki_api.Disambiguation as error:
             return error.options[:5]

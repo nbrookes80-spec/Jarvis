@@ -117,18 +117,11 @@ class Jarvis(CmdInterpreter, object):
         # a question ("Who wrote Hamlet?" -> "who wrote hamlet").
         self._raw_line = line.strip()
 
-        # People address it by name: "Hey Jarvis, how are you?". Drop that,
-        # unless it is a real command of the 'jarvis' plugin ("jarvis tour").
-        named = re.match(r"^(?:(?:hey|hi|hello|ok|okay)\s+)?jarvis\b[\s,.!?]*(.*)$",
-                         line.strip(), re.IGNORECASE)
-        if named and not named.group(1):
+        rest = self._strip_name(line)
+        if rest == '':
             return '__ai__'     # just "hey jarvis": no command, a greeting for the AI
-        if named and named.group(1):
-            rest = named.group(1)
-            sub = self._plugin_manager.get_plugins().get('jarvis')
-            subs = set(sub.get_plugins().keys()) if sub is not None else set()
-            if not subs or rest.split()[0].lower() not in subs:
-                return self.precmd(rest)
+        if rest != line.strip():
+            return self.precmd(rest)
 
         # Questions for Claude or the local model go through untouched, for the
         # same reason, and so a word inside them cannot select another command.
@@ -166,8 +159,31 @@ class Jarvis(CmdInterpreter, object):
         if self.enable_voice:
             self.speech.text_to_speech(text)
 
+    def _strip_name(self, text):
+        """Drop a leading "Jarvis," / "Hey Jarvis" from text.
+
+        People address the assistant by name, and "jarvis" is also a plugin
+        (the tour), so "Jarvis, tell me a joke" used to open the tour. Returns
+        the text unchanged when the words after the name are a real command
+        of the jarvis plugin ("jarvis tour"), and '' when nothing follows.
+        """
+        text = text.strip()
+        named = re.match(r"^(?:(?:hey|hi|hello|ok|okay)\s+)?jarvis\b[\s,.!?]*(.*)$",
+                         text, re.IGNORECASE)
+        if not named:
+            return text
+        rest = named.group(1)
+        if not rest:
+            return ''
+        sub = self._plugin_manager.get_plugins().get('jarvis')
+        subs = set(sub.get_plugins().keys()) if sub is not None else set()
+        if subs and rest.split()[0].lower() in subs:
+            return text
+        return rest
+
     def parse_input(self, data):
         """This method gets the data and assigns it to an action"""
+        data = self._strip_name(data) or data
         data = data.lower()
         # say command is better if data has punctuation marks
         if "say" not in data:

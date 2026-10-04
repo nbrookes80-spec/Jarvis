@@ -59,7 +59,7 @@ class HackerNews:
         titles = []
 
         try:
-            response = requests.get(self.URL)
+            response = requests.get(self.URL, timeout=15)
             response.raise_for_status()
         except (
             requests.exceptions.ConnectionError,
@@ -70,7 +70,9 @@ class HackerNews:
         else:
             parsed_page = BeautifulSoup(response.content, "html.parser")
 
-            title_elements = parsed_page.select("a.titlelink")
+            # Hacker News renamed the title link's class; "a.titlelink" now
+            # matches nothing and the command listed no stories.
+            title_elements = parsed_page.select("span.titleline > a")
 
             for index, element in enumerate(title_elements, start=1):
                 jarvis.say("[{:>2}] {}".format(index, element.getText()))

@@ -35,7 +35,6 @@ claude-agent-sdk
 
 # --- Text, web, data ---
 beautifulsoup4
-wikipedia
 whois
 googletrans
 random-word

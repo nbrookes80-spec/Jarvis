@@ -1,6 +1,5 @@
 import os
 
-import pyautogui as pg
 from plugin import LINUX, MACOS, WINDOWS, plugin, require
 
 
@@ -10,6 +9,10 @@ def Screencapture_Windows(jarvis, s):
     """
     By holding Windows + Alt + R key we start screen capture in
     """
+    # Imported here: pyautogui connects to the display on import, which
+    # kept this plugin from loading at all without a desktop session.
+    import pyautogui as pg
+
     def engine():
         pg.keyDown("win")
         pg.keyDown("alt")
@@ -31,6 +34,9 @@ def Scrrencapture_LINUX(jarvis, s):
     """
     By holding Ctrl + Alt + Shift + R key we start screen capture in
     """
+    # Imported here: pyautogui connects to the display on import, which
+    # kept this plugin from loading at all without a desktop session.
+    import pyautogui as pg
 
     def engine():
         pg.keyDown("ctrl")
@@ -55,6 +61,9 @@ def Scrrencapture_MACOS(jarvis, s):
     """
     By holding Ctrl + Alt + Shift + R key we start screen capture in
     """
+    # Imported here: pyautogui connects to the display on import, which
+    # kept this plugin from loading at all without a desktop session.
+    import pyautogui as pg
 
     def engine():
         pg.keyDown("command")

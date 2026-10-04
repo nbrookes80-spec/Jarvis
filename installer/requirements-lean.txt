@@ -1,0 +1,87 @@
+# Lean runtime requirements for Jarvis + Claude agent integration.
+#
+# Derived from installer/requirements.txt. Jarvis's PluginManager swallows
+# ImportError and skips the affected plugin (jarviscli/PluginManager.py:21-31),
+# so omitting a dependency disables only the plugins that import it. Nothing
+# else breaks.
+#
+# Omitted from the full set, and what you lose:
+#   Image                   -> pulls Django as a transitive dep; pillow below covers PIL
+#   pydoc-markdown          -> docs tooling only (pulls black, yapf, docspec, watchdog)
+#   IMDbPY                  -> movie lookups (pulls cinemagoer + lxml)
+#   opencv-python-headless  -> `open camera` plugin (~60MB)
+#   python-nmap             -> `scan_network` (also needs the nmap binary)
+#   yeelight                -> smart-bulb control
+#   pycricbuzz              -> cricket scores
+#   FlightRadarAPI          -> flight tracking (pulls curl_cffi + cffi)
+#   flake8, mock            -> lint/test tooling, not runtime
+#
+# To restore any of them: pip install <name> into the same venv.
+
+# --- Core framework ---
+# pluginmanager 0.4.1 imports pkg_resources, which setuptools removed in 82.0.0.
+# Without this pin Jarvis does not start at all: ModuleNotFoundError on import.
+setuptools<82
+pluginmanager
+colorama
+distro
+requests[security]
+python-dateutil
+pytimeparse
+tabulate
+pick
+halo
+markdown
+
+# --- Claude integration ---
+claude-agent-sdk
+
+# --- Text, web, data ---
+beautifulsoup4
+wikipedia
+whois
+googletrans
+random-word
+wonderwords
+pyenchant
+github3.py
+gitpython
+
+# --- Maths and plotting ---
+sympy
+matplotlib
+
+# --- Media, images, PDF ---
+pillow
+img2pdf
+pdf2image
+pdfkit
+climage
+
+# --- Speech and audio ---
+# playsound is deliberately absent. Upstream requires it, but nothing in the
+# repository imports it, and on Python >= 3.12 upstream points at
+# github.com/taconi/playsound, which no longer exists -- that dead URL is what
+# breaks `pip install -r installer/requirements.txt` on Ubuntu 24.04 / Zorin 18.
+# The audio path that is actually used is gtts + pyttsx3 (see
+# jarviscli/utilities/voice.py).
+gtts
+pyttsx3 == 2.71; sys_platform != 'darwin'
+
+# --- Location, units, misc ---
+geopy
+haversine
+forex-python
+speedtest-cli
+termdown
+nltk
+archey4==4.6.0.post1; sys_platform != 'darwin'
+
+# --- Platform-specific (no-ops off their platform) ---
+psutil; sys_platform == 'win32'
+pync; sys_platform == 'darwin'
+pypiwin32; sys_platform == 'win32'
+pyreadline3; sys_platform == 'win32'
+pywin32; sys_platform == 'win32'
+win10toast; sys_platform == 'win32'
+windows-curses; sys_platform == 'win32'

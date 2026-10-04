@@ -23,3 +23,6 @@ VoterInfo.json
 myinfo\.csv
 .vscode
 agenda.csv
+# Local MCP connector config: may hold API tokens. The .example file is tracked.
+.mcp.json
+__pycache__/

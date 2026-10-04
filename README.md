@@ -84,6 +84,40 @@ Jarvis is a simple personal assistant for Linux, MacOS and Windows which works o
    python3 installer
    ```
 
+#### Debian / Ubuntu / Zorin: `./bootstrap.sh`
+
+On Debian-family systems `./bootstrap.sh` is an alternative to `python installer`.
+It installs the system packages the upstream installer assumes you already have,
+is safe to re-run, prints every `sudo` command before running it, and sets up the
+[Claude agent plugin](doc/CLAUDE_AGENT.md).
+
+```bash
+./bootstrap.sh            # interactive
+./bootstrap.sh --yes      # no prompts
+./bootstrap.sh --help     # all flags
+```
+
+It installs a trimmed dependency set (`installer/requirements-lean.txt`) that
+resolves on Python 3.10 through 3.13; pass `--full` for the upstream list. Two
+pins there are load-bearing on a current system — see
+[doc/CLAUDE_AGENT.md](doc/CLAUDE_AGENT.md#changes-to-upstream-dependencies) for
+why `setuptools` is held below 82 and `playsound` is dropped.
+
+### Chatting with Claude
+
+After installing, `claude login` once, then inside Jarvis:
+
+```
+claude how much disk space am I using?
+claude model sonnet
+claude status
+```
+
+Claude can read files, run shell commands and use MCP connectors and skills on
+this machine. It asks before anything that writes or executes, and refuses a
+fixed set of destructive commands outright. Details, cost controls and the
+permission model: [doc/CLAUDE_AGENT.md](doc/CLAUDE_AGENT.md).
+
 ### Running Jarvis
 
 - Run Jarvis from anywhere:

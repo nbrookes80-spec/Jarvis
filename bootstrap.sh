@@ -10,6 +10,7 @@
 #   ./bootstrap.sh --full       # upstream installer/requirements.txt instead
 #   ./bootstrap.sh --no-apt     # skip system packages
 #   ./bootstrap.sh --no-cli     # skip the Claude Code CLI
+#   ./bootstrap.sh --autostart  # also open Jarvis in a terminal on login
 #
 set -euo pipefail
 
@@ -21,6 +22,7 @@ ASSUME_YES=0
 USE_FULL=0
 DO_APT=1
 DO_CLI=1
+DO_AUTOSTART=0
 
 for arg in "$@"; do
   case "$arg" in
@@ -28,7 +30,9 @@ for arg in "$@"; do
     --full) USE_FULL=1 ;;
     --no-apt) DO_APT=0 ;;
     --no-cli) DO_CLI=0 ;;
-    -h|--help) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --autostart) DO_AUTOSTART=1 ;;
+    # Prints the header block, however long it grows, and stops at the code.
+    -h|--help) awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "$0"; exit 0 ;;
     *) echo "Unknown option: $arg" >&2; exit 2 ;;
   esac
 done
@@ -280,9 +284,20 @@ else
   err "  ./jarvis"
 fi
 
+if [ "$DO_AUTOSTART" -eq 1 ]; then
+  echo
+  bold "9. Login autostart"
+  "$ROOT/scripts/install-autostart.sh"
+fi
+
 echo
 bold "Done."
 echo
+if [ "$DO_AUTOSTART" -eq 0 ]; then
+  info "To open Jarvis in a terminal on login:"
+  info "  ./scripts/install-autostart.sh"
+  echo
+fi
 info "Next steps:"
 info "  1. Authenticate Claude:   claude login"
 info "  2. Start Jarvis:          ./jarvis       (or just: jarvis)"

@@ -126,6 +126,39 @@ affected plugin (`jarviscli/PluginManager.py:21-31`). To restore any of them:
 The lean set was verified to resolve on Python 3.10, 3.12 and 3.13. Run
 `./bootstrap.sh --full` to use the upstream file instead.
 
+## Opening Jarvis on login
+
+```bash
+./scripts/install-autostart.sh            # install
+./scripts/install-autostart.sh --status   # show what is set
+./scripts/install-autostart.sh --remove   # undo
+```
+
+Or during install: `./bootstrap.sh --autostart`.
+
+This writes `~/.config/autostart/jarvis.desktop`, which opens Jarvis in a
+terminal window when you log in. Test it without logging out:
+
+```bash
+./scripts/jarvis-terminal.sh
+```
+
+**This is a login autostart entry, not a boot service, and that is deliberate.**
+Jarvis is an interactive prompt — it reads from stdin and waits. A systemd unit
+would start it with no terminal attached, where it either exits immediately or
+sits idle doing nothing, while looking like it works. If you want Jarvis
+*listening* for something in the background (voice, Telegram) that is a
+different program shape, not this CLI with autostart attached.
+
+`scripts/jarvis-terminal.sh` tries, in order: `gnome-terminal`,
+`xfce4-terminal`, `konsole`, `tilix`, `kitty`, `alacritty`,
+`x-terminal-emulator`, `xterm`. `gnome-terminal` is checked first because on
+GNOME — which Zorin uses by default — `x-terminal-emulator` is usually a
+symlink to it and needs `--` rather than `-e`.
+
+The window stays open after Jarvis exits so that a startup error is still
+readable rather than flashing past.
+
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs on pushes and pull requests. The repo previously

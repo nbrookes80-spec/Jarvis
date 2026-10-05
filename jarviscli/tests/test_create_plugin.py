@@ -36,8 +36,18 @@ class create_pluginTest(PluginTest):
         self.assertEqual(actual, expected)
 
     def test_file_exists_True(self):
-        actual = create_plugin.file_exists("test")
-        self.assertTrue(actual)
+        # Make the plugin this test looks for, rather than rely on a tracked
+        # file in custom/ (the user's own plugin folder).
+        import os
+        path = os.path.join(create_plugin.CUSTOM_PLUGINS_PATH, "test.py")
+        created = not os.path.exists(path)
+        if created:
+            open(path, "w").close()
+        try:
+            self.assertTrue(create_plugin.file_exists("test"))
+        finally:
+            if created:
+                os.remove(path)
 
     def test_file_exists_False(self):
         actual = create_plugin.file_exists("ghost")

@@ -1,49 +1,41 @@
 import unittest
 from unittest import mock
-import requests
-from tests import PluginTest
+
 from plugins.cocktail import Cocktail
-import random
+from tests import PluginTest
 
 
 class CocktailTest(PluginTest):
     def setUp(self):
         self.test = self.load_plugin(Cocktail)
         self.test.jarvis = self.jarvis_api
-    
-    def test_available_cocktail_ingridients(self):
-        available_ingridients = self.test.ingridients
-        for i in available_ingridients:
-            response = requests.get(
-                f"https://www.thecocktaildb.com/api/json/v1/1/filter.php?i={i}")
-            self.assertTrue(response.ok)
 
-    def test_sample_cocktails_by_ingridient(self):
-        # Test  Random Ingridient's Cocktails
-        available_ingridients = self.test.ingridients
-        random_base_ingridient = random.randint(0,len(available_ingridients) - 1)
-        cocktails = self.test.get_cocktails_by_ingridient(random_base_ingridient)
-        for c in cocktails:
-            response = requests.get(
-                f"https://www.thecocktaildb.com/api/json/v1/1/filter.php?i={c}")
-            self.assertTrue(response.ok)
+    def test_has_base_ingredients(self):
+        self.assertIn("Gin", self.test.ingredients)
+        self.assertGreater(len(self.test.ingredients), 10)
 
-    def test_is_out_of_range_true(self):
-        with self.assertRaises(Exception):
-            self.queue_input("700")
-            selected_ingridient = self.test.get_ingridient(self.jarvis_api)
-        with self.assertRaises(Exception):
-            self.queue_input("-10")
-            selected_ingridient = self.test.get_ingridient(self.jarvis_api)
+    def test_cocktails_by_ingredient(self):
+        drinks = {"drinks": [{"strDrink": "Negroni"}, {"strDrink": "Gimlet"}]}
+        with mock.patch.object(self.test, "get_json", return_value=drinks) as get_json:
+            gin = self.test.ingredients.index("Gin")
+            self.assertEqual(self.test.get_cocktails_by_ingredient(gin), ["Negroni", "Gimlet"])
+        self.assertTrue(get_json.call_args[0][0].endswith("filter.php?i=Gin"))
 
-    def test_is_out_of_range_false(self):
-        available_ingridients = self.test.ingridients
-        self.queue_input("10")
-        selected_ingridient = self.test.get_ingridient()
-        self.assertEqual(available_ingridients[selected_ingridient],available_ingridients[10])
+    def test_out_of_range_input_is_asked_again(self):
+        self.queue_input("700")
+        self.queue_input("-10")
         self.queue_input("3")
-        selected_ingridient = self.test.get_ingridient()
-        self.assertEqual(selected_ingridient, 3)
+        self.assertEqual(self.test.get_input("Base Ingredient", 24), 3)
+
+    def test_exit_input(self):
+        self.queue_input("exit")
+        self.assertEqual(self.test.get_input("Base Ingredient", 24), "exit")
+
+    def test_is_out_of_range(self):
+        self.assertTrue(self.test.is_out_of_range(25, 24))
+        self.assertTrue(self.test.is_out_of_range(0, 24))
+        self.assertFalse(self.test.is_out_of_range(10, 24))
+
 
 if __name__ == '__main__':
     unittest.main()

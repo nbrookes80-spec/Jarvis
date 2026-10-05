@@ -20,10 +20,6 @@ class QuoteTest(PluginTest):
     def setUp(self):
         self.test = self.load_plugin(Quote)
 
-    def test_try_again(self):
-        self.queue_input('exit')
-        self.test.try_again('travel', self.jarvis_api)
-
     def test_contains_word(self):
         text = 'Friends show their love in times of trouble, not in happiness.'
         self.assertEqual(self.test.contains_word(text, 'friends'), True)

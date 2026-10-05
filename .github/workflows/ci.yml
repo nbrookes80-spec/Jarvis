@@ -82,7 +82,12 @@ jobs:
             jarviscli/plugins/claude_agent.py \
             jarviscli/pkg_resources_compat.py \
             jarviscli/gui/*.py \
-            jarviscli/tests/test_gui_engine.py
+            jarviscli/launcher.py \
+            jarviscli/packages/ai_brain.py \
+            jarviscli/packages/geo.py \
+            jarviscli/packages/wiki_api.py \
+            jarviscli/tests/test_gui_engine.py \
+            jarviscli/tests/test_ai_routing.py
 
       # The launcher runs the directory (python jarviscli), which puts jarviscli/
       # itself on sys.path -- so there is no importable "jarviscli" package at
@@ -194,11 +199,20 @@ jobs:
             exit 1
           }
 
+      # pyproject.toml: the editable install must produce a working command,
+      # and must read the dependency lists the installers use.
+      - name: Assert pip install -e . gives a working Jarvis-AI
+        run: |
+          ./env/bin/pip install --no-deps -e .
+          printf 'binary 10\nexit\n' | timeout 180 ./env/bin/Jarvis-AI > pip-start.log 2>&1
+          grep -qx '1010' pip-start.log || { cat pip-start.log; echo "::error::env/bin/Jarvis-AI did not run a command"; exit 1; }
+          ./env/bin/python -c "from importlib.metadata import requires; r = requires('jarvis-ai'); assert any(x.startswith('claude-agent-sdk') for x in r), r"
+
       # The desktop window's backend (gui/engine.py, gui/voice.py) imports no
       # GTK, so it is tested headless against the real plugin set.
       - name: GUI backend tests
         working-directory: jarviscli
-        run: ../env/bin/python -m unittest tests.test_gui_engine -v
+        run: ../env/bin/python -m unittest tests.test_gui_engine tests.test_ai_routing tests.test_forecast tests.test_wiki tests.test_name_day -v
 
       # --no-models: the ~210 MB of speech models are not needed to prove the
       # installer works, and would make every run slow.

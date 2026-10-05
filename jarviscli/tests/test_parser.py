@@ -5,7 +5,15 @@ from Jarvis import Jarvis
 class ParserTest(unittest.TestCase):
 
     def setUp(self):
+        # These tests are about keyword matching itself; keep Claude's
+        # second opinion (and its cost) out of them.
+        from packages.ai_brain import router
+        self._router_was, router.enabled = router.enabled, False
         self.jarvis = Jarvis()
+
+    def tearDown(self):
+        from packages.ai_brain import router
+        router.enabled = self._router_was
 
     def test_chuck(self):
         user_input = "Jarvis, I want to hear a joke about Chuck Norris, can you help me?"

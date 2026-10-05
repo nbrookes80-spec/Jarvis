@@ -1,97 +1,60 @@
-from tests import PluginTest
+import datetime
+from unittest import mock
+
+import plugins.name_day as name_day_module
 from plugins.name_day import NameDay
-import requests
+from tests import PluginTest
+
+GREEK_DAYS = {(17, 3): "Alekos, Alexios, Alexis", (18, 11): "Platonas"}
 
 
+def fake_fetch(path, params=None, json=None):
+    """V2 API shapes: every country per day; getname is a list of entries."""
+    if path == "/today":
+        return {"gr": "Platonas", "bg": "n/a"}
+    if path == "/date":
+        names = GREEK_DAYS.get((params["day"], params["month"]), "n/a")
+        return {"gr": names, "bg": "n/a"}
+    if path == "/getname":
+        if json["name"] == "Alexios":
+            return [{"country": "gr", "0": {"day": 17, "month": 3, "name": "Alekos, Alexios, Alexis"}}]
+        return []
+    raise AssertionError(path)
+
+
+@mock.patch.object(name_day_module, "fetch", side_effect=fake_fetch)
 class TestNameDay(PluginTest):
     def setUp(self):
         self.plugin = self.load_plugin(NameDay)
         self.plugin.location = "Greece"
         self.plugin.jarvis = self.jarvis_api
 
-    def test_request_response(self):
-        response = requests.get("https://nameday.abalin.net/api/V1/today")
-        self.assertTrue(response.ok)
-
-    def test_a_specific_date_from_the_api(self):
-        # 17th of March in Greece
-        response = requests.get("https://nameday.abalin.net/api/V1/getdate?country=gr&day=17&month=3")
-        response_body = response.json()
-        self.assertTrue("Alexios" in response_body["nameday"]["gr"])
-
-    def test_request_status(self):
-        request = requests.get("https://nameday.abalin.net/api/V1/today")
-        self.assertEqual(request.status_code, 200)
-
-    def test_request_response_body(self):
-        response = requests.get("https://nameday.abalin.net/api/V1/getdate?day=18&month=11")
-        response_body = response.json()
-        expected = {
-            "day": 18,
-            "month": 11,
-            "nameday": {
-                "fi": "Tenho",
-                "bg": "n/a",
-                "us": "Odelia, Odell, Odo, Sutherland, Sutton",
-                "hr": "Posveta Bazilike sv. Petra i Pavla",
-                "es": "Aurelio",
-                "dk": "Hesychius",
-                "it": "Dedicazione Delle Basiliche Dei Santi Pietro E Paolo",
-                "lt": "Ginvydas, Ginvyde, Otonas, Romanas, Salomeja",
-                "gr": "Platonas",
-                "fr": "Aude",
-                "hu": "Jenő",
-                "at": "Odo, Philippine",
-                "lv": "Aleksandrs, Doloresa",
-                "de": "Alda, Bettina, Odo, Roman",
-                "ru": "n/a",
-                "pl": "Aniela, Cieszymysł, Klaudyna, Roman, Tomasz",
-                "sk": "Eugen",
-                "se": "Magnhild",
-                "cz": "Romana",
-                "ee": "Ilo, Ilu"
-            }
-        }
-        self.assertEqual(response_body, expected)
-
-    def test_today(self):
+    def test_today(self, _):
         self.plugin.today()
-        request = requests.get("https://nameday.abalin.net/api/V1/today", params={"country": "gr"})
-        request_body = request.json()["nameday"]["gr"]
-        if request_body != "n/a":
-            self.assertEqual(self.history_say().last_text(), "Say some kind words to " + request_body)
-        else:
-            self.assertEqual(self.history_say().last_text(),
-                             "No name days today in " + str(self.plugin.location))
+        self.assertEqual(self.history_say().last_text(), "Say some kind words to Platonas")
 
-    def test_tomorrow(self):
+    def test_tomorrow_asks_for_the_next_date(self, fetch):
         self.plugin.tomorrow()
-        request = requests.get("https://nameday.abalin.net/api/V1/tomorrow", params={"country": "gr"})
-        request_body = request.json()["nameday"]["gr"]
-        if request_body != "n/a":
-            self.assertEqual(self.history_say().last_text(), "Say some kind words to " + request_body)
-        else:
-            self.assertEqual(self.history_say().last_text(),
-                             "No name days for tomorrow in " + str(self.plugin.location))
+        tomorrow = datetime.date.today() + datetime.timedelta(days=1)
+        fetch.assert_called_with("/date", {"day": tomorrow.day, "month": tomorrow.month})
 
-    def test_specific_date(self):
-        day = 15
-        month = 11
-        self.queue_input(str(day) + "/" + str(month))
+    def test_specific_date(self, _):
+        self.queue_input("17/3")
         self.plugin.specific_date()
-        request = requests.get("https://nameday.abalin.net/api/V1/getdate", params={"day": day, "month": month})
-        request_body = request.json()["nameday"]["gr"]
-        if request_body != "n/a":
-            self.assertEqual(self.history_say().last_text(), "Say some kind words to "
-                             + request_body + " on " + str(day) + "/" + str(month))
-        else:
-            self.assertEqual(self.history_say().last_text(),
-                             "No name days at " + str(day) + "/" + str(month) + " in " + self.plugin.location)
+        self.assertEqual(self.history_say().last_text(),
+                         "Say some kind words to Alekos, Alexios, Alexis on 17/3")
 
-    def test_specific_name(self):
-        name = "Alexios"
-        name_day_of_name = "17/3"
-        self.queue_input(name)
+    def test_specific_date_without_names(self, _):
+        self.queue_input("1/1")
+        self.plugin.specific_date()
+        self.assertEqual(self.history_say().last_text(), "No name days at 1/1 in Greece")
+
+    def test_specific_name(self, _):
+        self.queue_input("Alexios")
         self.plugin.specific_name()
-        self.assertIn(self.history_say().last_text(),
-                      ("Say some kind words to " + name + " at " + name_day_of_name, "No name days found for " + name))
+        self.assertEqual(self.history_say().last_text(), "Say some kind words to Alexios at 17/3")
+
+    def test_unknown_name(self, _):
+        self.queue_input("Zzyzx")
+        self.plugin.specific_name()
+        self.assertEqual(self.history_say().last_text(), "No name days found for Zzyzx")

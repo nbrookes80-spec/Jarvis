@@ -1,7 +1,31 @@
-from colorama import Fore
-from plugin import plugin, require
-import requests
+import datetime
 import re
+
+import requests
+from colorama import Fore
+
+from packages import geo
+from plugin import plugin, require
+
+# Version 1 of this API was retired (404). V2 returns every country in one
+# response; name lookups are POST-only.
+API = "https://nameday.abalin.net/api/V2"
+HEADERS = {"User-Agent": "Jarvis-AI/1.0 (https://github.com/nbrookes80-spec/Jarvis)"}
+
+
+def fetch(path, params=None, json=None):
+    """The "data" member of an API response; raises ValueError on failure."""
+    try:
+        if json is not None:
+            r = requests.post(API + path, json=json, headers=HEADERS, timeout=15)
+        else:
+            r = requests.get(API + path, params=params, headers=HEADERS, timeout=15)
+        body = r.json()
+    except (requests.RequestException, ValueError):
+        raise ValueError("I couldn't reach the name day service.")
+    if not body.get("success"):
+        raise ValueError(body.get("message") or "The name day service returned an error.")
+    return body["data"]
 
 
 @require(network=True)
@@ -66,14 +90,13 @@ class NameDay:
                 continue
 
             # handle input
-            if inp == 1:
-                self.today()
-            elif inp == 2:
-                self.tomorrow()
-            elif inp == 3:
-                self.specific_date()
-            elif inp == 4:
-                self.specific_name()
+            lookups = {1: self.today, 2: self.tomorrow,
+                       3: self.specific_date, 4: self.specific_name}
+            if inp in lookups:
+                try:
+                    lookups[inp]()
+                except ValueError as error:     # the service is unreachable
+                    self.jarvis.say(str(error), Fore.RED)
             elif inp == 5:
                 self.change_country()
                 continue
@@ -98,9 +121,10 @@ class NameDay:
         otherwise, the user is asked to enter a country from the supported list.
         """
         self.jarvis.say("Getting Location ... ")
-        send_url = 'http://api.ipstack.com/check?access_key=f16ebe59174140a634827d674e605350&output=json&legacy=1'
-        js = requests.get(send_url).json()
-        loc = js["country_name"]
+        try:
+            loc = geo.locate_me()["country_name"]
+        except geo.GeoError:
+            loc = "an unknown country"
 
         if loc in self.countries.keys():
             self.location = loc
@@ -115,10 +139,8 @@ class NameDay:
         Show the name days for today.
         """
         country_code = self.get_country_code()
-        j = requests.get("https://nameday.abalin.net/api/V1/today",
-                         params={"country": country_code}).json()
-        names = j["nameday"][country_code]
-        if names != "n/a":
+        names = self._names(fetch("/today", {"timezone": self._timezone()}), country_code)
+        if names:
             self.jarvis.say("Say some kind words to " + names)
         else:
             self.jarvis.say("No name days today in " + str(self.location))
@@ -128,10 +150,10 @@ class NameDay:
         Show the name days for tomorrow.
         """
         country_code = self.get_country_code()
-        j = requests.get("https://nameday.abalin.net/api/V1/tomorrow",
-                         params={"country": country_code}).json()
-        names = j["nameday"][country_code]
-        if names != "n/a":
+        tomorrow = datetime.date.today() + datetime.timedelta(days=1)
+        names = self._names(fetch("/date", {"day": tomorrow.day, "month": tomorrow.month}),
+                            country_code)
+        if names:
             self.jarvis.say("Say some kind words to " + names)
         else:
             self.jarvis.say("No name days for tomorrow in " + str(self.location))
@@ -148,10 +170,9 @@ class NameDay:
         except ValueError:
             self.specific_date()
             return
-        j = requests.get("https://nameday.abalin.net/api/V1/getdate",
-                         params={"country": country_code, "day": day, "month": month}).json()
-        names = j["nameday"][country_code]
-        if names != "n/a":
+        names = self._names(fetch("/date", {"day": int(day), "month": int(month)}),
+                            country_code)
+        if names:
             self.jarvis.say("Say some kind words to " + names + " on " + day + "/" + month)
         else:
             self.jarvis.say("No name days at " + day + "/" + month + " in " + self.location)
@@ -163,18 +184,32 @@ class NameDay:
         country_code = self.get_country_code()
         self.jarvis.say("Please enter name")
         name = self.jarvis.input().strip()
-        j = requests.get("https://nameday.abalin.net/api/V1/getname",
-                         params={"country": country_code, "name": name}).json()
+        data = fetch("/getname", json={"name": name, "country": country_code})
 
-        # the same name may have multiple name days
-        if j["0"]:
-            dates = ""
-            for s in j["0"]:
-                date = str(s["day"]) + "/" + str(s["month"]) + " "
-                dates += date.strip()
-            self.jarvis.say("Say some kind words to " + name + " at " + dates)
+        # the same name may have several name days: entries "0", "1", ...
+        days = []
+        for entry in data:
+            if entry.get("country") != country_code:
+                continue
+            for key, value in entry.items():
+                if key != "country" and isinstance(value, dict):
+                    days.append("{}/{}".format(value["day"], value["month"]))
+        if days:
+            self.jarvis.say("Say some kind words to " + name + " at " + ", ".join(days))
         else:
             self.jarvis.say("No name days found for " + name)
+
+    @staticmethod
+    def _names(data, country_code):
+        names = data.get(country_code, "n/a")
+        return "" if names in ("n/a", "", None) else names
+
+    @staticmethod
+    def _timezone():
+        try:
+            return geo.locate_me()["timezone"]
+        except geo.GeoError:
+            return "UTC"
 
     def change_country(self):
         """

@@ -8,7 +8,7 @@ import sys
 import tempfile
 from utilities.GeneralUtilities import print_say
 from CmdInterpreter import CmdInterpreter
-from packages.ai_brain import brain
+from packages.ai_brain import brain, router
 
 # register hist path
 HISTORY_FILENAME = tempfile.TemporaryFile('w+t')
@@ -97,16 +97,36 @@ class Jarvis(CmdInterpreter, object):
         return dirs_abs
 
     def default(self, data):
-        """No command matched: hand the original wording to the AI fallback."""
+        """No command matched: hand the original wording to the AI fallback.
+
+        Claude (Haiku by default) answers first: quick and cheap. When it
+        cannot (offline, not signed in, spend cap reached), the free local
+        model answers instead, if it is installed; it is slower, so say so.
+        """
         question = getattr(self, '_raw_line', '') or data
-        if brain.enabled and brain.available and question.strip() and question != 'None':
+        if not brain.enabled or not question.strip() or question == 'None':
+            print_say("I could not identify your command...", self, Fore.MAGENTA)
+            return
+
+        if brain.available:
             try:
                 self._api.say(brain.ask(question), Fore.CYAN)
                 return
             except RuntimeError as e:
+                claude_problem = str(e)
+        else:
+            claude_problem = 'AI answers are unavailable: %s.' % brain.unavailable_reason()
+
+        from packages import local_llm
+        if local_llm.available():
+            self._api.say("Claude isn't reachable, so the local model is answering. "
+                          "It takes about half a minute.", Fore.MAGENTA)
+            try:
+                self._api.say(local_llm.ask(question).strip(), Fore.CYAN)
+            except local_llm.LocalLLMError as e:
                 self._api.say(str(e), Fore.MAGENTA)
-                return
-        print_say("I could not identify your command...", self, Fore.MAGENTA)
+            return
+        self._api.say(claude_problem, Fore.MAGENTA)
 
     def precmd(self, line):
         """Hook that executes before every command."""
@@ -117,18 +137,11 @@ class Jarvis(CmdInterpreter, object):
         # a question ("Who wrote Hamlet?" -> "who wrote hamlet").
         self._raw_line = line.strip()
 
-        # People address it by name: "Hey Jarvis, how are you?". Drop that,
-        # unless it is a real command of the 'jarvis' plugin ("jarvis tour").
-        named = re.match(r"^(?:(?:hey|hi|hello|ok|okay)\s+)?jarvis\b[\s,.!?]*(.*)$",
-                         line.strip(), re.IGNORECASE)
-        if named and not named.group(1):
+        rest = self._strip_name(line)
+        if rest == '':
             return '__ai__'     # just "hey jarvis": no command, a greeting for the AI
-        if named and named.group(1):
-            rest = named.group(1)
-            sub = self._plugin_manager.get_plugins().get('jarvis')
-            subs = set(sub.get_plugins().keys()) if sub is not None else set()
-            if not subs or rest.split()[0].lower() not in subs:
-                return self.precmd(rest)
+        if rest != line.strip():
+            return self.precmd(rest)
 
         # Questions for Claude or the local model go through untouched, for the
         # same reason, and so a word inside them cannot select another command.
@@ -166,8 +179,31 @@ class Jarvis(CmdInterpreter, object):
         if self.enable_voice:
             self.speech.text_to_speech(text)
 
+    def _strip_name(self, text):
+        """Drop a leading "Jarvis," / "Hey Jarvis" from text.
+
+        People address the assistant by name, and "jarvis" is also a plugin
+        (the tour), so "Jarvis, tell me a joke" used to open the tour. Returns
+        the text unchanged when the words after the name are a real command
+        of the jarvis plugin ("jarvis tour"), and '' when nothing follows.
+        """
+        text = text.strip()
+        named = re.match(r"^(?:(?:hey|hi|hello|ok|okay)\s+)?jarvis\b[\s,.!?]*(.*)$",
+                         text, re.IGNORECASE)
+        if not named:
+            return text
+        rest = named.group(1)
+        if not rest:
+            return ''
+        sub = self._plugin_manager.get_plugins().get('jarvis')
+        subs = set(sub.get_plugins().keys()) if sub is not None else set()
+        if subs and rest.split()[0].lower() in subs:
+            return text
+        return rest
+
     def parse_input(self, data):
         """This method gets the data and assigns it to an action"""
+        data = self._strip_name(data) or data
         data = data.lower()
         # say command is better if data has punctuation marks
         if "say" not in data:
@@ -190,41 +226,50 @@ class Jarvis(CmdInterpreter, object):
             # to an action
             output = self.find_action(
                 data, self._plugin_manager.get_plugins().keys())
+            if self._keyword_was_hijacked(data, output):
+                return '__ai__'
         return output
+
+    def _keyword_was_hijacked(self, data, output):
+        """Ask Claude whether a mid-sentence keyword match is really wanted.
+
+        find_action() picks any command name found anywhere in the sentence,
+        so "how far is the moon from earth" ran the moon-phase command. When
+        the command word is not the first word of a longer request, Haiku
+        confirms the match (about $0.001); if it says no, the request goes to
+        the AI answer path instead. Without Claude, the match stands.
+        """
+        if output == "None" or not (brain.enabled and brain.available):
+            return False
+        words = data.split()
+        command = output.split()[0]
+        if len(words) < 4 or words[0] == command:
+            return False
+        plugin = self._plugin_manager.get_plugins().get(command)
+        description = plugin.get_doc() if plugin is not None else ''
+        request = getattr(self, '_raw_line', '') or data
+        return router.confirms(request, command, description) is False
 
     def find_action(self, data, actions):
         """Checks if input is a defined action.
+
+        The longest command name found in the sentence wins. On a tie the one
+        said later wins: "I want to hear a joke" means `joke`, not `hear`.
+        (Ties used to follow plugin load order, which varies between runs.)
         :return: returns the action"""
-        output = "None"
-        if not actions:
-            return output
-
-        action_found = False
+        actions = set(actions or ())
         words = data.split()
-        actions = list(actions)
-
-        # return longest matching word
-        # TODO: Implement real and good natural language processing
-        # But for now, this code returns acceptable results
-        actions.sort(key=lambda l: len(l), reverse=True)
-
-        # check word by word if exists an action with the same name
-        for action in actions:
-            words_remaining = data.split()
-            for word in words:
-                words_remaining.remove(word)
-                # For the 'near' keyword, the words before 'near' are also needed
-                if word == "near":
-                    initial_words = words[:words.index('near')]
-                    output = word + " " +\
-                        " ".join(initial_words + ["|"] + words_remaining)
-                elif word == action:  # command name exists
-                    action_found = True
-                    output = word + " " + " ".join(words_remaining)
-                    break
-            if action_found:
-                break
-        return output
+        best = None
+        for index, word in enumerate(words):
+            if word in actions and (best is None or (len(word), index) > (len(best[1]), best[0])):
+                best = (index, word)
+        if best is None:
+            return "None"
+        index, word = best
+        if word == "near":
+            # For 'near', the words before it are needed too
+            return "near " + " ".join(words[:index] + ["|"] + words[index + 1:])
+        return word + " " + " ".join(words[index + 1:])
 
     def executor(self, command):
         """
@@ -239,4 +284,6 @@ class Jarvis(CmdInterpreter, object):
         if command:
             self.execute_once(command)
         else:
+            brain.warm()
+            router.warm()
             self.cmdloop()

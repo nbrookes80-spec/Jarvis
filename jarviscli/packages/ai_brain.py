@@ -57,6 +57,10 @@ def resolve_model(name):
 class AIBrain(object):
     """One lean Claude conversation on a background asyncio loop."""
 
+    system_prompt = SYSTEM_PROMPT
+    tools = ('WebSearch',)
+    max_turns = 4
+
     def __init__(self):
         self.enabled = os.environ.get('JARVIS_AI_FALLBACK', '1') not in ('0', 'false', 'no')
         self.model = resolve_model(os.environ.get('JARVIS_AI_MODEL', DEFAULT_MODEL))
@@ -94,6 +98,20 @@ class AIBrain(object):
             self.model = model
             self.reset()
         return model
+
+    def warm(self):
+        """Start the Claude session in the background. The first connection
+        takes 10-25 s (it starts the Claude Code CLI); doing it at launch
+        keeps that wait off the user's first question."""
+        if not (self.enabled and self.available):
+            return
+
+        def connect():
+            try:
+                self._get_client()
+            except Exception as e:
+                self.last_error = str(e)
+        threading.Thread(target=connect, name='jarvis-ai-warm', daemon=True).start()
 
     def reset(self):
         """Forget the conversation; the next question starts fresh."""
@@ -150,14 +168,14 @@ class AIBrain(object):
     def _options(self):
         kwargs = dict(
             model=self.model,
-            system_prompt=SYSTEM_PROMPT,
-            tools=['WebSearch'],
-            allowed_tools=['WebSearch'],
+            system_prompt=self.system_prompt,
+            tools=list(self.tools),
+            allowed_tools=list(self.tools),
             mcp_servers={},
             strict_mcp_config=True,     # ignore every MCP config on disk
             setting_sources=[],         # and the user's Claude Code settings/plugins
             plugins=[],
-            max_turns=4,
+            max_turns=self.max_turns,
             max_budget_usd=self.budget,
             cwd=os.path.expanduser('~'),
         )
@@ -176,4 +194,54 @@ class AIBrain(object):
             return self._client
 
 
+ROUTER_PROMPT = (
+    "You route requests for a voice assistant that has built-in commands. You are "
+    "given the user's words and one command that keyword matching picked. Answer "
+    "YES if the user wants that command to run, NO if they are asking something "
+    "else (a general question, or a different task that merely mentions the word). "
+    "Answer with the single word YES or NO."
+)
+
+
+class CommandRouter(AIBrain):
+    """Second opinion on keyword matches, so a word mid-sentence cannot hijack a
+    question: "how far is the moon from earth" should not run the moon-phase
+    command. Always Haiku, no tools, one short answer per call."""
+
+    system_prompt = ROUTER_PROMPT
+    tools = ()
+    max_turns = 1
+    RESET_EVERY = 20        # each check is independent; keep the history short
+
+    def __init__(self):
+        super().__init__()
+        self.enabled = os.environ.get('JARVIS_AI_ROUTER', '1') not in ('0', 'false', 'no')
+        self.model = MODELS['haiku']
+        self._calls = 0
+
+    def set_model(self, name):
+        return self.model       # the router stays on the cheapest model
+
+    def confirms(self, request, command, description):
+        """True/False from Claude, or None when it could not be asked."""
+        if not (self.enabled and self.available):
+            return None
+        self._calls += 1
+        if self._calls % self.RESET_EVERY == 0:
+            self.reset()
+        question = 'User said: "%s"\nCommand: %s - %s\nRun this command?' % (
+            request, command, (description or 'no description').strip().split('\n')[0])
+        try:
+            answer = self.ask(question, timeout=20)
+        except RuntimeError:
+            return None
+        word = answer.strip().upper()
+        if word.startswith('YES'):
+            return True
+        if word.startswith('NO'):
+            return False
+        return None
+
+
 brain = AIBrain()
+router = CommandRouter()

@@ -1,7 +1,7 @@
 import unittest
 from colorama import Fore
 from tests import PluginTest
-from mock import patch
+from unittest.mock import patch, Mock
 from plugins import cryptotracker
 
 
@@ -16,13 +16,13 @@ class TestCryptotracker(PluginTest):
 
     def test_print_in_color_red(self):
         change = -1.54
-        colored_text = Fore.RED + str(change) + Fore.RESET
+        colored_text = Fore.RED + '-1.54%' + Fore.RESET
         self.assertEqual(cryptotracker.print_in_color(change),
                          colored_text)
 
     def test_print_in_color_green(self):
         change = 1.54
-        colored_text = Fore.GREEN + str(change) + Fore.RESET
+        colored_text = Fore.GREEN + '+1.54%' + Fore.RESET
         self.assertEqual(cryptotracker.print_in_color(change),
                          colored_text)
 
@@ -53,15 +53,19 @@ class TestCryptotracker(PluginTest):
             "{ADVICE}cryptotracker{COLOR_RESET}".format(
                 WARNING=Fore.RED, ADVICE=Fore.BLUE, COLOR_RESET=Fore.RESET))
 
+    # Binance answers an unknown pair without the price fields.
+    @patch.object(cryptotracker.requests, 'get',
+                  return_value=Mock(json=lambda: {"code": -1121, "msg": "Invalid symbol."}))
     @patch('builtins.print')
-    def test_check_prices_exception_message(self, mock_print):
+    def test_check_prices_exception_message(self, mock_print, _get):
         target = "wrong_currency"
         base = "wrong_currency"
         cryptotracker.check_prices(target, base)
         mock_print.assert_called_with(
             "{WARNING}Wrong pair {}/{}!{COLOR_RESET} "
             "\nFull list of symbols is here: "
-            "https://coinmarketcap.com/all/views/all/"
+            "https://api.binance.com/api/v3/ticker/price"
+            "\nDue to API Changes please use USDT for USD Prices"
             "\n".format(
                 base,
                 target,

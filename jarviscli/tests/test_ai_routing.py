@@ -80,7 +80,6 @@ class RouterAnswerTest(unittest.TestCase):
         self.assertEqual(router.model, 'claude-haiku-4-5')
 
 
-
 class FallbackOrderTest(unittest.TestCase):
     """Claude first; the local model when Claude can't answer."""
 

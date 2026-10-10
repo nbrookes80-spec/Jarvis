@@ -81,7 +81,7 @@ def gcal(jarvis, s):
     """Google Calendar. Try: gcal today | tomorrow | week | next | add <title> <when> [for 30 minutes]"""
     word = s.split(' ', 1)[0].lower()
     if word == 'add':
-        title, when, minutes = gw.split_event_request(s[3:].strip())
+        title, when, minutes = gw.split_event_request(s.partition(' ')[2].strip())
         start = gw.parse_when(when)
         if _confirm(jarvis, 'Add "%s" on %s for %d minutes?' % (
                 title, start.strftime('%A %d %B at %H:%M'), minutes)):

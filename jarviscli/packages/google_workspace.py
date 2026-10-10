@@ -38,6 +38,7 @@ SCOPES = [
 ]
 
 MAX_TEXT = 4000         # characters of any one body, document or sheet shown
+MAX_READ_BYTES = 2 * 1024 * 1024    # largest plain-text Drive file downloaded to read
 WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 INSTALL_HINT = ('The Google libraries are not installed. Run: '
                 '~/jarvis-claude/env/bin/pip install google-api-python-client '
@@ -88,20 +89,27 @@ def logout():
 
 def _credentials():
     try:
-        from google.auth.exceptions import RefreshError
+        from google.auth.exceptions import GoogleAuthError, RefreshError, TransportError
         from google.auth.transport.requests import Request
         from google.oauth2.credentials import Credentials
     except ImportError:
         raise GoogleError(INSTALL_HINT)
     if not is_signed_in():
         raise GoogleError('Not signed in to Google. Say "gws login".')
-    creds = Credentials.from_authorized_user_file(TOKEN, SCOPES)
+    try:
+        creds = Credentials.from_authorized_user_file(TOKEN, SCOPES)
+    except (ValueError, KeyError):
+        raise GoogleError('The saved Google sign-in is damaged. Say "gws logout", then "gws login".')
     if not creds.valid:
         if creds.expired and creds.refresh_token:
             try:
                 creds.refresh(Request())
             except RefreshError:
                 raise GoogleError('Your Google sign-in expired. Say "gws login" again.')
+            except TransportError:
+                raise GoogleError('Could not reach Google to refresh your sign-in. Check the connection and try again.')
+            except GoogleAuthError:
+                raise GoogleError('Your Google sign-in could not be refreshed. Say "gws login" again.')
             _save_token(creds)
         else:
             raise GoogleError('Your Google sign-in is no longer valid. Say "gws login" again.')
@@ -316,6 +324,8 @@ def drive_read(file_id):
     if mime in EXPORTS:
         raw = _execute(svc.files().export(fileId=file_id, mimeType=EXPORTS[mime]))
     elif mime.startswith('text/'):
+        if int(meta.get('size') or 0) > MAX_READ_BYTES:
+            raise GoogleError('"%s" is too large to read here. Open it in Drive instead.' % meta.get('name'))
         raw = _execute(svc.files().get_media(fileId=file_id))
     else:
         raise GoogleError('"%s" is not a text file I can read (%s).' % (meta.get('name'), mime))

@@ -168,5 +168,48 @@ class TokenFileTest(unittest.TestCase):
         self.assertEqual(mode, 0o600)
 
 
+class SignInFailureTest(unittest.TestCase):
+    """Problems with the saved sign-in are spoken as GoogleError, never raised raw."""
+
+    def setUp(self):
+        from google.auth.exceptions import TransportError
+        self.TransportError = TransportError
+        for patch in (mock.patch.object(gw, 'is_signed_in', return_value=True),):
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def creds(self, refresh_error=None):
+        creds = mock.Mock(valid=False, expired=True, refresh_token='r')
+        creds.refresh.side_effect = refresh_error
+        return creds
+
+    def test_network_failure_while_refreshing(self):
+        creds = self.creds(self.TransportError('no route to host'))
+        with mock.patch('google.oauth2.credentials.Credentials.from_authorized_user_file',
+                        return_value=creds):
+            with self.assertRaises(gw.GoogleError) as ctx:
+                gw._credentials()
+        self.assertIn('Could not reach Google', str(ctx.exception))
+
+    def test_damaged_token_file(self):
+        with mock.patch('google.oauth2.credentials.Credentials.from_authorized_user_file',
+                        side_effect=ValueError('bad json')):
+            with self.assertRaises(gw.GoogleError) as ctx:
+                gw._credentials()
+        self.assertIn('damaged', str(ctx.exception))
+
+
+class DriveReadLimitTest(unittest.TestCase):
+
+    def test_huge_text_file_is_not_downloaded(self):
+        svc = mock.Mock()
+        svc.files().get.return_value.execute.return_value = {
+            'name': 'big.log', 'mimeType': 'text/plain', 'size': str(500 * 1024 * 1024)}
+        with mock.patch.object(gw, '_service', return_value=svc):
+            with self.assertRaises(gw.GoogleError):
+                gw.drive_read('abc')
+        svc.files().get_media.assert_not_called()
+
+
 if __name__ == '__main__':
     unittest.main()

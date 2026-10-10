@@ -195,7 +195,9 @@ class AIBrain(object):
         if self._local is None:
             self._local = local_llm.LocalLLM()
         try:
-            text = self._local.chat(question, keep_history=True, system=self.system_prompt)
+            # The local model has no web search and no 'claude' command, so it gets
+            # its own prompt rather than the Claude one.
+            text = self._local.chat(question, keep_history=True, system=local_llm.SYSTEM)
         except local_llm.LocalLLMError as e:
             self.last_error = str(e)
             raise RuntimeError(str(e))

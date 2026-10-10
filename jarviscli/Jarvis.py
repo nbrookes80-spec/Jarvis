@@ -150,8 +150,9 @@ class Jarvis(CmdInterpreter, object):
         try:
             self._api.say(gemma.ask(question).strip(), Fore.CYAN)
         except gemma.GemmaError as e:
+            # Gemma was reachable, so the error is reported here and nothing else
+            # is announced; the slower model is not tried after a failed answer.
             self._api.say(str(e), Fore.MAGENTA)
-            return private
         return True
 
     def precmd(self, line):

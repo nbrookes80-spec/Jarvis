@@ -36,7 +36,7 @@ class OllamaBackendTest(unittest.TestCase):
             self.assertEqual(self.brain.ask('capital of France?'), 'Paris.')
         self.assertEqual(chat.call_args[0][0], 'capital of France?')
         self.assertTrue(chat.call_args[1]['keep_history'])
-        self.assertEqual(chat.call_args[1]['system'], ai_brain.SYSTEM_PROMPT)
+        self.assertEqual(chat.call_args[1]['system'], local_llm.SYSTEM)
 
     def test_conversation_context_is_kept_then_cleared_on_switch(self):
         self.brain.set_model('ollama')

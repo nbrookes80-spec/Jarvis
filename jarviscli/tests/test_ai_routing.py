@@ -6,7 +6,7 @@ import unittest
 from unittest import mock
 
 from Jarvis import Jarvis
-from packages import ai_brain
+from packages import ai_brain, gemma
 
 
 class KeywordRouterTest(unittest.TestCase):
@@ -96,6 +96,7 @@ class FallbackOrderTest(unittest.TestCase):
                 mock.patch.object(type(ai_brain.brain), 'available',
                                   new_callable=mock.PropertyMock, return_value=True), \
                 mock.patch.object(ai_brain.brain, 'ask', **claude), \
+                mock.patch.object(gemma, 'available', return_value=False), \
                 mock.patch.object(local_llm, 'available', return_value=local_available), \
                 mock.patch.object(local_llm, 'ask', return_value=local_reply) as local_ask, \
                 mock.patch.object(self.jarvis._api, 'say', side_effect=lambda t, *a, **k: said.append(t)):

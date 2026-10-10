@@ -115,7 +115,7 @@ context. Use `claude ...` when a request needs your files or apps.
 | Variable | Default | |
 |---|---|---|
 | `JARVIS_AI_FALLBACK` | `1` | `0` turns it off ("I could not identify your command" again) |
-| `JARVIS_AI_MODEL` | `haiku` | `haiku` ($1/$5 per MTok), `sonnet` ($2/$10), `opus` ($4/$20), or a full model id |
+| `JARVIS_AI_MODEL` | `haiku` | `haiku` ($1/$5 per MTok), `sonnet` ($2/$10), `opus` ($4/$20), a full model id, or `ollama` (the free local model; see `packages/local_llm.py`) |
 | `JARVIS_AI_BUDGET_USD` | `1.00` | spend cap per session |
 | `JARVIS_AI_ROUTER` | `1` | `0` stops Claude checking mid-sentence command matches (below) |
 

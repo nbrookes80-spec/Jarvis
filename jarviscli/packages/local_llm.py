@@ -20,6 +20,7 @@ import re
 import shutil
 import subprocess
 import time
+from urllib.parse import urlparse
 
 import requests
 
@@ -69,9 +70,14 @@ def server_up():
 
 
 def ensure_server(wait=15):
-    """Start `ollama serve` in the background if it is not already running."""
+    """Start `ollama serve` in the background if it is not already running.
+    Only the default local address can be started; any other URL that is down
+    is reported instead."""
     if server_up():
         return
+    if not _can_autostart(OLLAMA_URL):
+        raise LocalLLMError('Ollama is not reachable at %s. Check JARVIS_OLLAMA_URL and that the '
+                            'server is running.' % OLLAMA_URL)
     exe = ollama_binary()
     if exe is None:
         raise LocalLLMError("The local model isn't installed. Run scripts/install-local-llm.sh.")
@@ -84,6 +90,13 @@ def ensure_server(wait=15):
             return
         time.sleep(0.5)
     raise LocalLLMError('The local model server did not start; see ~/.local/share/jarvis-ollama.log.')
+
+
+def _can_autostart(url):
+    """`ollama serve` binds the default address, so only that address can be started."""
+    parts = urlparse(url)
+    return (parts.hostname or '').lower() in ('127.0.0.1', 'localhost', '::1') \
+        and parts.port in (None, 11434)
 
 
 def installed_models():

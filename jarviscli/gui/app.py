@@ -9,8 +9,8 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
-from gui import voice  # noqa: E402
-from packages.ai_brain import brain, router  # noqa: E402
+from gui import choices, voice  # noqa: E402
+from packages.ai_brain import OLLAMA, brain, router  # noqa: E402
 from gui.engine import EXIT_WORDS, JarvisEngine  # noqa: E402
 
 APP_ID = 'io.github.nbrookes80_spec.Jarvis'
@@ -133,6 +133,7 @@ class JarvisWindow(Adw.ApplicationWindow):
         self.set_size_request(360, 420)
         self._reply = []
         self._building = None       # Jarvis bubble collecting current output
+        self._choices = None        # answer buttons under the current prompt
 
         toolbar = Adw.ToolbarView()
         self.set_content(toolbar)
@@ -146,13 +147,14 @@ class JarvisWindow(Adw.ApplicationWindow):
         voice_section.append('Listen for “Hey Jarvis”', 'app.wake')
         menu.append_section(None, voice_section)
         ai_section = Gio.Menu()
-        ai_section.append('Answer other questions with Claude', 'app.ai')
+        ai_section.append('Answer other questions with AI', 'app.ai')
         ai_section.append('Let Claude check which command you meant', 'app.ai-router')
         models = Gio.Menu()
-        for key, label in (('haiku', 'Haiku 4.5 (cheapest)'), ('sonnet', 'Sonnet 5.5'),
-                           ('opus', 'Opus 5.5 (most capable)')):
+        for key, label in (('haiku', 'Claude Haiku 4.5 (cheapest)'), ('sonnet', 'Claude Sonnet 5.5'),
+                           ('opus', 'Claude Opus 5.5 (most capable)'),
+                           (OLLAMA, 'Ollama (local, free, private)')):
             models.append(label, 'app.ai-model::' + key)
-        ai_section.append_submenu('Claude model', models)
+        ai_section.append_submenu('Answer model', models)
         menu.append_section(None, ai_section)
         app_section = Gio.Menu()
         app_section.append('Keep running when closed', 'app.background')
@@ -312,6 +314,7 @@ class JarvisWindow(Adw.ApplicationWindow):
 
     def add_user(self, text):
         self._building = None
+        self._clear_choices()
         self._bubble(text, 'user')
 
     def add_output(self, text):
@@ -325,11 +328,32 @@ class JarvisWindow(Adw.ApplicationWindow):
                 self._building.add_css_class('mono')
             GLib.timeout_add(30, self._scroll_to_end)
 
-    def add_prompt(self, prompt):
+    def add_prompt(self, prompt, options=()):
         self._building = None
+        self._clear_choices()
         if prompt:
             self._bubble(prompt, 'jarvis prompt')
+        if options:
+            self._show_choices(options)
         self.entry.set_placeholder_text('Answer Jarvis…')
+
+    def _show_choices(self, options):
+        """Buttons for the answer Jarvis is waiting for. A click answers it as
+        if the label had been typed; they go away once anything is sent."""
+        box = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, halign=Gtk.Align.START,
+                          max_children_per_line=3, column_spacing=6, row_spacing=6)
+        for label, reply in options:
+            b = Gtk.Button(label=label, css_classes=['pill'])
+            b.connect('clicked', lambda _b, r=reply, t=label: self.app.answer(r, t))
+            box.append(b)
+        self.messages.append(box)
+        self._choices = box
+        GLib.timeout_add(30, self._scroll_to_end)
+
+    def _clear_choices(self):
+        if self._choices is not None:
+            self.messages.remove(self._choices)
+            self._choices = None
 
     def add_error(self, text):
         self._building = None
@@ -337,6 +361,7 @@ class JarvisWindow(Adw.ApplicationWindow):
 
     def end_reply(self):
         self._building = None
+        self._clear_choices()
         self.entry.set_placeholder_text('Type a command…')
 
     def _send_entry(self):
@@ -493,14 +518,17 @@ class JarvisApp(Adw.Application):
         brain.enabled = self.settings['ai_fallback'] = value.get_boolean()
         self.settings.save()
         if brain.enabled and brain.unavailable_reason():
-            self._show_banner('Claude answers unavailable: %s.' % brain.unavailable_reason())
+            self._show_banner('Answers unavailable: %s.' % brain.unavailable_reason())
 
     def _on_ai_model(self, action, value):
         action.set_state(value)
         self.settings['ai_model'] = value.get_string()
         self.settings.save()
         brain.set_model(self.settings['ai_model'])
-        self.window.set_status('Claude model: %s' % value.get_string().title())
+        name = 'Ollama' if brain.backend == OLLAMA else value.get_string().title()
+        self.window.set_status('Model: %s' % name)
+        if brain.unavailable_reason():
+            self._show_banner('Answers unavailable: %s.' % brain.unavailable_reason())
 
     def _on_autostart(self, action, value):
         try:
@@ -519,7 +547,7 @@ class JarvisApp(Adw.Application):
                      'faster-whisper and %s.\n\nOther questions: %s.' % (
                          self.engine.plugin_count if self.engine else 0,
                          self.speaker.engine_name or 'no voice',
-                         ('Claude ' + brain.describe()) if brain.enabled else 'off'))
+                         brain.describe() if brain.enabled else 'off'))
         about.present()
 
     def _show_banner(self, text):
@@ -591,10 +619,19 @@ class JarvisApp(Adw.Application):
 
     def _on_prompt(self, prompt):
         self._flush_speech()
-        self.window.add_prompt(prompt)
+        options = choices.options_for(prompt, self.engine.recent_lines())
+        self.window.add_prompt(prompt, options)
         self.window.set_status('Waiting for your answer')
         if prompt:
             self._speak(prompt)
+
+    def answer(self, reply, label):
+        """A button under a prompt: answer it as if the label had been typed."""
+        if self.engine is None or not self.engine.waiting_for_input:
+            return
+        self.speaker.stop()
+        self.window.add_user(label)
+        self.engine.submit(reply)
 
     def _on_busy(self, busy):
         self._busy = busy

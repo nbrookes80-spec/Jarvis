@@ -33,6 +33,11 @@ markdown
 # --- Claude integration ---
 claude-agent-sdk
 
+# --- Google Workspace (plugins/google_workspace.py; imported lazily) ---
+google-api-python-client
+google-auth-oauthlib
+google-auth-httplib2
+
 # --- Text, web, data ---
 beautifulsoup4
 whois

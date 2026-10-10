@@ -14,6 +14,7 @@ that on one worker thread and turns it into callbacks:
 
 It imports nothing from GTK, so it can be driven and tested headless.
 """
+import collections
 import io
 import os
 import queue
@@ -28,6 +29,8 @@ ANSI_RE = re.compile(r'(\x9B|\x1B\[)[0-?]*[ -/]*[@-~]')
 # Commands that end the terminal session. In a window they would sys.exit()
 # the worker thread and leave a dead UI, so the frontend handles them itself.
 EXIT_WORDS = {'exit', 'quit', 'goodbye', 'bye'}
+
+RECENT_LINES = 20
 
 
 def strip_ansi(text):
@@ -145,8 +148,14 @@ class JarvisEngine(object):
         self._ui_thread = None
         self._lock = threading.Lock()
         self._stdin = _StdinBridge(self)
+        self._recent = collections.deque(maxlen=RECENT_LINES)
 
     # ------------------------------------------------------------ public API
+
+    def recent_lines(self):
+        """The last output lines of the current command, oldest first. The
+        window reads them to offer buttons for a menu printed above a prompt."""
+        return list(self._recent)
 
     def start(self):
         self._thread = threading.Thread(
@@ -210,6 +219,7 @@ class JarvisEngine(object):
         if '\n' in self._pending:
             head, _, tail = self._pending.rpartition('\n')
             self._pending = tail
+            self._recent.extend(head.split('\n'))
             self._call(self.on_output, head + '\n')
 
     def _flush_pending(self):
@@ -268,6 +278,7 @@ class JarvisEngine(object):
             if command is None:
                 break
             self._busy = True
+            self._recent.clear()
             self._call(self.on_busy, True)
             try:
                 self.jarvis.get_api().eval(command)

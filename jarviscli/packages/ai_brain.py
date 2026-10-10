@@ -19,6 +19,7 @@ variables, or from the desktop window's menu:
 
   JARVIS_AI_FALLBACK=0           turn the fallback off
   JARVIS_AI_MODEL=sonnet         haiku (default) | sonnet | opus | full model id
+                                 | ollama (the free local model, see local_llm)
   JARVIS_AI_BUDGET_USD=1.00      spend cap per session
 """
 import asyncio
@@ -39,6 +40,7 @@ MODELS = {
     'opus': 'claude-opus-5-5',        # $4 / $20
 }
 DEFAULT_MODEL = 'haiku'
+OLLAMA = 'ollama'                     # the local model, free and private; not a Claude model
 
 SYSTEM_PROMPT = (
     "You are Jarvis, a voice assistant on the user's Linux desktop. Your replies "
@@ -54,8 +56,14 @@ def resolve_model(name):
     return MODELS.get((name or '').strip().lower(), name or MODELS[DEFAULT_MODEL])
 
 
+def _ollama_installed():
+    from packages import local_llm
+    return local_llm.ollama_binary() is not None
+
+
 class AIBrain(object):
-    """One lean Claude conversation on a background asyncio loop."""
+    """One lean conversation with the chosen model: Claude on a background
+    asyncio loop, or the local Ollama model."""
 
     system_prompt = SYSTEM_PROMPT
     tools = ('WebSearch',)
@@ -63,23 +71,33 @@ class AIBrain(object):
 
     def __init__(self):
         self.enabled = os.environ.get('JARVIS_AI_FALLBACK', '1') not in ('0', 'false', 'no')
-        self.model = resolve_model(os.environ.get('JARVIS_AI_MODEL', DEFAULT_MODEL))
+        self.backend = 'claude'
+        self.model = MODELS[DEFAULT_MODEL]      # the Claude model, kept while Ollama is chosen
         self.budget = float(os.environ.get('JARVIS_AI_BUDGET_USD', '1.00'))
         self.spend = 0.0
         self.last_error = None
         self._client = None
         self._loop = None
+        self._local = None
         self._lock = threading.Lock()
+        self.set_model(os.environ.get('JARVIS_AI_MODEL', DEFAULT_MODEL))
 
     # ----------------------------------------------------------- status
 
     @property
     def available(self):
-        """SDK importable and a Claude Code CLI to talk to."""
+        """Claude: SDK importable and a Claude Code CLI to talk to.
+        Ollama: the Ollama program is installed."""
+        if self.backend == OLLAMA:
+            return _ollama_installed()
         return SDK_AVAILABLE and (shutil.which('claude') is not None
                                   or os.path.exists(os.path.expanduser('~/.claude/local/claude')))
 
     def unavailable_reason(self):
+        if self.backend == OLLAMA:
+            if not _ollama_installed():
+                return 'Ollama is not installed (see scripts/install-local-llm.sh)'
+            return None
         if not SDK_AVAILABLE:
             return 'claude-agent-sdk is not installed'
         if not self.available:
@@ -87,23 +105,31 @@ class AIBrain(object):
         return None
 
     def describe(self):
+        if self.backend == OLLAMA:
+            from packages import local_llm
+            return 'Ollama (%s, runs on this computer, free)' % local_llm.DEFAULT_MODEL
         name = next((k for k, v in MODELS.items() if v == self.model), self.model)
-        return '%s (%s), $%.4f spent of $%.2f' % (name.title(), self.model, self.spend, self.budget)
+        return 'Claude %s (%s), $%.4f spent of $%.2f' % (
+            name.title(), self.model, self.spend, self.budget)
 
     # ---------------------------------------------------------- control
 
     def set_model(self, name):
-        model = resolve_model(name)
-        if model != self.model:
-            self.model = model
+        """Choose a Claude model (alias or full id) or OLLAMA. Returns the choice."""
+        if (name or '').strip().lower() == OLLAMA:
+            backend, model = OLLAMA, self.model
+        else:
+            backend, model = 'claude', resolve_model(name)
+        if (backend, model) != (self.backend, self.model):
+            self.backend, self.model = backend, model
             self.reset()
-        return model
+        return OLLAMA if backend == OLLAMA else model
 
     def warm(self):
         """Start the Claude session in the background. The first connection
         takes 10-25 s (it starts the Claude Code CLI); doing it at launch
-        keeps that wait off the user's first question."""
-        if not (self.enabled and self.available):
+        keeps that wait off the user's first question. Ollama needs no warm-up."""
+        if self.backend != 'claude' or not (self.enabled and self.available):
             return
 
         def connect():
@@ -115,6 +141,8 @@ class AIBrain(object):
 
     def reset(self):
         """Forget the conversation; the next question starts fresh."""
+        if self._local is not None:
+            self._local.reset()
         with self._lock:
             client, self._client = self._client, None
         if client is not None and self._loop is not None:
@@ -131,6 +159,8 @@ class AIBrain(object):
         reason = self.unavailable_reason()
         if reason:
             raise RuntimeError('AI answers are unavailable: %s.' % reason)
+        if self.backend == OLLAMA:
+            return self._ask_local(question)
         if self.spend >= self.budget:
             raise RuntimeError('The AI spend cap of $%.2f for this session is used up.' % self.budget)
 
@@ -157,6 +187,21 @@ class AIBrain(object):
         return text or "I don't have an answer for that."
 
     # ---------------------------------------------------------- internals
+
+    def _ask_local(self, question):
+        """Answer with the Ollama model. It is free, so there is no spend cap;
+        its errors are already fit for the user."""
+        from packages import local_llm
+        if self._local is None:
+            self._local = local_llm.LocalLLM()
+        try:
+            # The local model has no web search and no 'claude' command, so it gets
+            # its own prompt rather than the Claude one.
+            text = self._local.chat(question, keep_history=True, system=local_llm.SYSTEM)
+        except local_llm.LocalLLMError as e:
+            self.last_error = str(e)
+            raise RuntimeError(str(e))
+        return text or "I don't have an answer for that."
 
     def _submit(self, coro, timeout):
         if self._loop is None:
@@ -220,7 +265,7 @@ class CommandRouter(AIBrain):
         self._calls = 0
 
     def set_model(self, name):
-        return self.model       # the router stays on the cheapest model
+        return self.model       # the router stays on Claude's cheapest model
 
     def confirms(self, request, command, description):
         """True/False from Claude, or None when it could not be asked."""

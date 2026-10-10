@@ -8,6 +8,7 @@ import sys
 import tempfile
 from utilities.GeneralUtilities import print_say
 from CmdInterpreter import CmdInterpreter
+from packages import gemma
 from packages.ai_brain import brain, router
 
 # register hist path
@@ -104,6 +105,9 @@ class Jarvis(CmdInterpreter, object):
         model answers instead, if it is installed; it is slower, so say so.
         """
         question = getattr(self, '_raw_line', '') or data
+        if gemma.private_mode() and question.strip() and question != 'None':
+            self._answer_with_gemma(question, private=True)     # never Claude
+            return
         if not brain.enabled or not question.strip() or question == 'None':
             print_say("I could not identify your command...", self, Fore.MAGENTA)
             return
@@ -117,6 +121,9 @@ class Jarvis(CmdInterpreter, object):
         else:
             claude_problem = 'AI answers are unavailable: %s.' % brain.unavailable_reason()
 
+        if self._answer_with_gemma(question):
+            return
+
         from packages import local_llm
         if local_llm.available():
             self._api.say("Claude isn't reachable, so the local model is answering. "
@@ -127,6 +134,26 @@ class Jarvis(CmdInterpreter, object):
                 self._api.say(str(e), Fore.MAGENTA)
             return
         self._api.say(claude_problem, Fore.MAGENTA)
+
+    def _answer_with_gemma(self, question, private=False):
+        """Answer with the local Gemma model. True when the question is dealt with.
+        In private mode that includes Gemma being down: it is then reported and
+        the question is not sent to Claude instead."""
+        if not gemma.available():
+            if private:
+                self._api.say("Private mode is on but the local Gemma server is not running, "
+                              "so I have not asked Claude.", Fore.MAGENTA)
+                return True
+            return False
+        if not private:
+            self._api.say("Claude isn't reachable, so local Gemma is answering.", Fore.MAGENTA)
+        try:
+            self._api.say(gemma.ask(question).strip(), Fore.CYAN)
+        except gemma.GemmaError as e:
+            # Gemma was reachable, so the error is reported here and nothing else
+            # is announced; the slower model is not tried after a failed answer.
+            self._api.say(str(e), Fore.MAGENTA)
+        return True
 
     def precmd(self, line):
         """Hook that executes before every command."""
@@ -239,7 +266,7 @@ class Jarvis(CmdInterpreter, object):
         confirms the match (about $0.001); if it says no, the request goes to
         the AI answer path instead. Without Claude, the match stands.
         """
-        if output == "None" or not (brain.enabled and brain.available):
+        if output == "None" or gemma.private_mode() or not (brain.enabled and brain.available):
             return False
         words = data.split()
         command = output.split()[0]
